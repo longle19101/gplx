@@ -485,7 +485,7 @@ $('btnSync').addEventListener('click', async () => {
       // fetch/XHR calls while still allowing normal page navigations through —
       // an iframe load is indistinguishable from a real navigation, which is
       // exactly what worked in direct browser testing.
-      await sendViaIframeNav(url, e);
+      await sendToSheet(url, e);
       e.synced = true;
       ok++;
     }catch(err){

@@ -176,6 +176,10 @@
     <label>URL đầy đủ của lần đồng bộ gần nhất (để kiểm tra thủ công)</label>
     <textarea id="debugUrl" readonly style="min-height:70px;font-size:.7rem;"></textarea>
     <div class="hint">Sao chép dòng trên và dán vào trình duyệt để kiểm tra xem nó có hoạt động giống hệt khi bạn tự gõ URL không.</div>
+    <div class="row">
+      <button class="ghost" id="btnNetTest">Kiểm tra kết nối mạng (không liên quan Google)</button>
+    </div>
+    <div id="netTestStatus" class="status"></div>
   </div>
 
   <footer>Chạy hoàn toàn trên trình duyệt của bạn — dữ liệu chỉ rời máy khi bạn nhấn "Đồng bộ".</footer>
@@ -460,6 +464,40 @@ function escapeHtml(s){
 }
 renderEntries();
 
+$('btnNetTest').addEventListener('click', async () => {
+  const el = $('netTestStatus');
+  el.textContent = 'Đang kiểm tra...';
+  el.className = 'status';
+  const results = [];
+  // Test 1: a totally unrelated public API — checks if fetch() from JS works at all
+  try{
+    const r = await fetch('https://jsonplaceholder.typicode.com/todos/1');
+    const j = await r.json();
+    results.push('✓ Fetch tới máy chủ khác (không phải Google): OK (id=' + j.id + ')');
+  }catch(err){
+    results.push('✗ Fetch tới máy chủ khác: LỖI — ' + err.message);
+  }
+  // Test 2: fetch a Google domain readable endpoint
+  try{
+    const r2 = await fetch('https://www.googleapis.com/discovery/v1/apis?name=sheets');
+    results.push('✓ Fetch tới googleapis.com: OK (status ' + r2.status + ')');
+  }catch(err){
+    results.push('✗ Fetch tới googleapis.com: LỖI — ' + err.message);
+  }
+  // Test 3: fetch the actual Apps Script URL (no-cors, so we just check it doesn't throw)
+  const scriptUrl = $('scriptUrl').value.trim();
+  if (scriptUrl){
+    try{
+      await fetch(scriptUrl, { mode: 'no-cors' });
+      results.push('✓ Fetch tới URL Apps Script của bạn: không báo lỗi (nhưng không đọc được phản hồi do no-cors)');
+    }catch(err){
+      results.push('✗ Fetch tới URL Apps Script của bạn: LỖI — ' + err.message);
+    }
+  }
+  el.innerHTML = results.join('<br>');
+  el.className = 'status';
+});
+
 $('btnResetSync').addEventListener('click', () => {
   entries.forEach(e => { e.synced = false; });
   persistEntries();
@@ -480,12 +518,23 @@ $('btnSync').addEventListener('click', async () => {
   let ok = 0, fail = 0, lastErr = '';
   for (const e of pending){
     try{
-      // Uses a hidden iframe navigation (not fetch/XHR) to send the data.
-      // Some network-level filters and ad-block apps intercept background
-      // fetch/XHR calls while still allowing normal page navigations through —
-      // an iframe load is indistinguishable from a real navigation, which is
-      // exactly what worked in direct browser testing.
-      await sendViaIframeNav(url, e);
+      // Back to POST: Vietnamese text (diacritics) expands ~3x when percent-encoded
+      // for a GET query string, which was silently exceeding a length limit and
+      // getting the data parameter dropped entirely. POST has no such limit.
+      // text/plain avoids a CORS preflight (Apps Script doesn't handle OPTIONS).
+      const response = await fetch(url, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json;charset=utf-8"
+  },
+  body: JSON.stringify(e)
+});
+
+const result = await response.json();
+
+if (!result.success) {
+  throw new Error(result.message || "Google Sheet lỗi");
+}
       e.synced = true;
       ok++;
     }catch(err){

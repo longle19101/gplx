@@ -144,6 +144,10 @@
     <label>Giới tính</label><input id="f_gender">
     <label>Địa chỉ</label><textarea id="f_address"></textarea>
     <label>Ngày cấp</label><input id="f_issueDate" placeholder="dd/mm/yyyy">
+    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
+    <label>Số điện thoại</label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
+    <label>Khóa</label><input id="f_khoa" placeholder="VD: K15">
+    <label>Số tiền học phí đã đóng</label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
     <details style="margin-top:8px;">
       <summary>Dữ liệu thô</summary>
       <div class="hint" id="rawData" style="white-space:pre-wrap;"></div>
@@ -162,7 +166,7 @@
       <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
     </div>
     <div id="formSetupStatus" class="status"></div>
-    <div class="hint">Chỉ cần dán 1 lần. Xem hướng dẫn tạo Form ở phần trò chuyện. Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp, Nguồn.</div>
+    <div class="hint">Chỉ cần dán 1 lần. Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng.</div>
   </div>
 
   <div class="card">
@@ -309,6 +313,9 @@ function showFields(data, source){
   $('f_gender').value = data.gender;
   $('f_address').value = data.address;
   $('f_issueDate').value = data.issueDate;
+  $('f_phone').value = '';
+  $('f_khoa').value = '';
+  $('f_tuition').value = '';
   $('rawData').textContent = data.raw;
   $('fieldsCard').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -465,6 +472,9 @@ $('btnAdd').addEventListener('click', () => {
     gender: $('f_gender').value.trim(),
     address: $('f_address').value.trim(),
     issueDate: $('f_issueDate').value.trim(),
+    phone: $('f_phone').value.trim(),
+    khoa: $('f_khoa').value.trim(),
+    tuition: $('f_tuition').value.trim(),
     source: lastSource,
     synced: false
   };
@@ -509,7 +519,7 @@ function escapeHtml(s){
 renderEntries();
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'source'];
+const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'source', 'phone', 'khoa', 'tuition'];
 let formConfig = null;
 try { formConfig = JSON.parse(localStorage.getItem('cccd_form_config') || 'null'); } catch(e){ formConfig = null; }
 if (formConfig) $('formPrefillLink').value = formConfig.rawLink || '';
@@ -596,9 +606,9 @@ $('btnSubmitForm').addEventListener('click', async () => {
 
 // ---------- CSV export & encryption (no network required) ----------
 function entriesToCsv(list){
-  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Nguồn'];
+  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Nguồn','Số điện thoại','Khóa','Học phí đã đóng'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
-  const rows = list.map(e => [e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.source].map(esc).join(','));
+  const rows = list.map(e => [e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.source, e.phone, e.khoa, e.tuition].map(esc).join(','));
   return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel
 }
 

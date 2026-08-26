@@ -107,6 +107,14 @@
   .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
   .photo-thumb .lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(11,61,92,.85);color:#fff;font-size:.55rem;text-align:center;padding:1px 0;}
   .photo-thumb .rm{position:absolute;top:1px;right:1px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:.6rem;line-height:1;cursor:pointer;}
+  .capture-frame{position:absolute;pointer-events:none;border:2px solid rgba(200,150,30,.9);border-radius:12px;}
+  .capture-frame.frame-document{left:6%;right:6%;top:32%;bottom:32%;} /* ID-card-shaped landscape guide */
+  .capture-frame.frame-portrait{left:22%;right:22%;top:14%;bottom:26%;border-radius:50%/40%;} /* face/portrait guide */
+  .capture-frame .corner{position:absolute;width:22px;height:22px;border:3px solid var(--gold);}
+  .capture-frame .c-tl{top:-3px;left:-3px;border-right:none;border-bottom:none;}
+  .capture-frame .c-tr{top:-3px;right:-3px;border-left:none;border-bottom:none;}
+  .capture-frame .c-bl{bottom:-3px;left:-3px;border-right:none;border-top:none;}
+  .capture-frame .c-br{bottom:-3px;right:-3px;border-left:none;border-top:none;}
 </style>
 </head>
 <body>
@@ -148,24 +156,29 @@
   </div>
 
   <div class="card" id="fieldsCard" style="display:none;">
-    <h2>Kiểm tra thông tin <span id="srcBadge"></span></h2>
-    <label id="lbl_idNumber">Số CCCD</label><input id="f_idNumber">
-    <label id="lbl_oldId">Số CMND cũ</label><input id="f_oldId">
+    <h2>Thông tin học viên <span id="srcBadge"></span></h2>
     <label>Họ và tên</label><input id="f_fullName">
     <label>Ngày sinh</label><input id="f_dob" placeholder="dd/mm/yyyy">
-    <label id="lbl_gender">Giới tính</label><input id="f_gender">
-    <label id="lbl_address">Địa chỉ</label><textarea id="f_address"></textarea>
-    <label id="lbl_issueDate">Ngày cấp</label><input id="f_issueDate" placeholder="dd/mm/yyyy">
-    <div id="gplxOnly" style="display:none;">
-      <label>Hạng bằng lái (GPLX)</label><input id="f_licenseClass" placeholder="VD: A1, B2...">
-      <label>Ngày hết hạn</label><input id="f_expiryDate" placeholder="dd/mm/yyyy">
-      <label>Đơn vị cấp</label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
-      <label>Ngày trúng tuyển (đạt kết quả sát hạch)</label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
-    </div>
-    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <label>Số điện thoại</label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
     <label>Khóa</label><input id="f_khoa" placeholder="VD: K15">
     <label>Số tiền học phí đã đóng</label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
+    <h2>Thông tin CCCD <span id="cccdBadge" class="badge pending">Chưa quét</span></h2>
+    <label>Số CCCD</label><input id="f_idNumber">
+    <label>Số CMND cũ</label><input id="f_oldId">
+    <label>Giới tính</label><input id="f_gender">
+    <label>Địa chỉ</label><textarea id="f_address"></textarea>
+    <label>Ngày cấp CCCD</label><input id="f_issueDate" placeholder="dd/mm/yyyy">
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
+    <h2>Thông tin GPLX <span id="gplxBadge" class="badge pending">Chưa quét</span></h2>
+    <label>Số GPLX</label><input id="f_gplxNumber">
+    <label>Hạng bằng lái</label><input id="f_licenseClass" placeholder="VD: A1, B2...">
+    <label>Ngày cấp GPLX</label><input id="f_gplxIssueDate" placeholder="dd/mm/yyyy">
+    <label>Ngày hết hạn</label><input id="f_expiryDate" placeholder="dd/mm/yyyy">
+    <label>Đơn vị cấp</label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
+    <label>Ngày trúng tuyển (đạt kết quả sát hạch)</label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Ảnh đính kèm</h2>
@@ -182,7 +195,20 @@
     </details>
     <div class="row">
       <button class="primary" id="btnAdd">Thêm vào danh sách</button>
-      <button class="ghost" id="btnDiscard">Huỷ</button>
+      <button class="ghost" id="btnDiscard">Huỷ (xoá hết, bắt đầu lại)</button>
+    </div>
+  </div>
+
+  <div id="photoCaptureModal" style="display:none;position:fixed;inset:0;background:#000;z-index:1000;">
+    <video id="captureVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;"></video>
+    <div id="captureFrame" class="capture-frame">
+      <div class="corner c-tl"></div><div class="corner c-tr"></div>
+      <div class="corner c-bl"></div><div class="corner c-br"></div>
+    </div>
+    <div id="captureLabel" style="position:absolute;top:16px;left:16px;color:#fff;font-weight:700;font-size:.9rem;text-shadow:0 1px 3px rgba(0,0,0,.6);"></div>
+    <button id="btnCaptureCancel" style="position:absolute;top:14px;right:14px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:.8rem;">Huỷ</button>
+    <div style="position:absolute;bottom:28px;left:0;right:0;display:flex;justify-content:center;">
+      <button id="btnCaptureShot" style="width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid var(--gold);font-size:1.4rem;"></button>
     </div>
   </div>
 
@@ -194,7 +220,7 @@
       <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
     </div>
     <div id="formSetupStatus" class="status"></div>
-    <div class="hint">Chỉ cần dán 1 lần. Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD/GPLX, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Loại giấy tờ, Hạng GPLX, Ngày hết hạn (GPLX), Đơn vị cấp (GPLX), Ngày trúng tuyển (GPLX).</div>
+    <div class="hint">Chỉ cần dán 1 lần. Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn, Đơn vị cấp, Ngày trúng tuyển.</div>
   </div>
 
   <div class="card">
@@ -292,22 +318,14 @@ function persistEntries(){
 }
 
 // ---------- document type ----------
-const DOC_LABELS = {
-  cccd: { idNumber: 'Số CCCD', oldId: 'Số CMND cũ', gender: 'Giới tính', address: 'Địa chỉ', issueDate: 'Ngày cấp' },
-  gplx: { idNumber: 'Số GPLX', oldId: 'Số cũ (nếu có)', gender: 'Hạng thấp nhất', address: 'Nơi cấp', issueDate: 'Ngày cấp' }
-};
+// docType only picks which parser/section the NEXT scan fills into — it does
+// NOT clear anything, so you can scan CCCD then switch to GPLX and scan that
+// too, building up one combined record before adding it to the list.
 $('docType').addEventListener('change', () => {
   const t = $('docType').value;
-  const L = DOC_LABELS[t];
-  $('lbl_idNumber').textContent = L.idNumber;
-  $('lbl_oldId').textContent = L.oldId;
-  $('lbl_gender').textContent = L.gender;
-  $('lbl_address').textContent = L.address;
-  $('lbl_issueDate').textContent = L.issueDate;
-  $('gplxOnly').style.display = t === 'gplx' ? 'block' : 'none';
   $('status').textContent = t === 'gplx'
     ? 'Đang quét Giấy phép lái xe — hướng camera vào mã QR trên bằng lái.'
-    : 'Chọn loại giấy tờ, nhấn "Bắt đầu quét QR" và hướng camera vào mã QR.';
+    : 'Đang quét Căn cước công dân — hướng camera vào mã QR trên thẻ.';
 });
 
 // ---------- CCCD QR parsing ----------
@@ -403,28 +421,52 @@ function parseOcrText(text){
   };
 }
 
-function showFields(data, source){
+function resetDraft(){
+  ['f_fullName','f_dob','f_phone','f_khoa','f_tuition',
+   'f_idNumber','f_oldId','f_gender','f_address','f_issueDate',
+   'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_expiryDate','f_issuingAuthority','f_passDate']
+    .forEach(id => { $(id).value = ''; });
+  $('cccdBadge').textContent = 'Chưa quét';
+  $('cccdBadge').className = 'badge pending';
+  $('gplxBadge').textContent = 'Chưa quét';
+  $('gplxBadge').className = 'badge pending';
+  $('rawData').textContent = '';
+  draftPhotos = {};
+  renderPhotoPreviews();
+}
+
+// Merges a scan result into the shared draft instead of overwriting it —
+// this lets you scan CCCD, then switch document type and scan GPLX for the
+// SAME person, and end up with one combined record instead of two rows.
+function showFields(data, source, docType){
   lastSource = source;
   $('fieldsCard').style.display = 'block';
   $('srcBadge').innerHTML = source === 'qr'
     ? '<span class="badge qr">QR</span>' : '<span class="badge ocr">OCR</span>';
-  $('f_idNumber').value = data.idNumber;
-  $('f_oldId').value = data.oldId;
-  $('f_fullName').value = data.fullName;
-  $('f_dob').value = data.dob;
-  $('f_gender').value = data.gender;
-  $('f_address').value = data.address;
-  $('f_issueDate').value = data.issueDate;
-  $('f_phone').value = '';
-  $('f_khoa').value = '';
-  $('f_tuition').value = '';
-  $('f_licenseClass').value = data.licenseClass || '';
-  $('f_expiryDate').value = data.expiryDate || '';
-  $('f_issuingAuthority').value = data.issuingAuthority || '';
-  $('f_passDate').value = '';
-  draftPhotos = {};
-  renderPhotoPreviews();
-  $('rawData').textContent = data.raw;
+
+  // Shared fields — only fill if not already set by an earlier scan, so a
+  // second scan for the same person doesn't clobber a manually-corrected name.
+  if (!$('f_fullName').value.trim() && data.fullName) $('f_fullName').value = data.fullName;
+  if (!$('f_dob').value.trim() && data.dob) $('f_dob').value = data.dob;
+
+  if (docType === 'gplx'){
+    $('f_gplxNumber').value = data.idNumber || '';
+    $('f_licenseClass').value = data.licenseClass || '';
+    $('f_gplxIssueDate').value = data.issueDate || '';
+    $('f_expiryDate').value = data.expiryDate || '';
+    $('f_issuingAuthority').value = data.issuingAuthority || '';
+    $('gplxBadge').textContent = 'Đã quét';
+    $('gplxBadge').className = 'badge qr';
+  } else {
+    $('f_idNumber').value = data.idNumber || '';
+    $('f_oldId').value = data.oldId || '';
+    $('f_gender').value = data.gender || '';
+    $('f_address').value = data.address || '';
+    $('f_issueDate').value = data.issueDate || '';
+    $('cccdBadge').textContent = 'Đã quét';
+    $('cccdBadge').className = 'badge qr';
+  }
+  $('rawData').textContent += (docType === 'gplx' ? '[GPLX] ' : '[CCCD] ') + data.raw + '\n';
   $('fieldsCard').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
@@ -460,8 +502,9 @@ $('btnStart').addEventListener('click', async () => {
       },
       (decodedText) => {
         setStatus('Đã đọc được mã QR.', 'ok');
-        const data = $('docType').value === 'gplx' ? parseGplxQr(decodedText) : parseCccdQr(decodedText);
-        showFields(data, 'qr');
+        const dt = $('docType').value;
+        const data = dt === 'gplx' ? parseGplxQr(decodedText) : parseCccdQr(decodedText);
+        showFields(data, 'qr', dt);
         stopScanner();
       },
       () => { /* per-frame scan failure, ignore */ }
@@ -563,33 +606,52 @@ $('btnOcr').addEventListener('click', async () => {
       }
     });
     setStatus('Nhận diện xong. Vui lòng kiểm tra và sửa lại thông tin — OCR không chính xác 100%.', 'ok');
-    showFields(parseOcrText(text), 'ocr');
+    showFields(parseOcrText(text), 'ocr', $('docType').value);
   }catch(err){
     setStatus('Lỗi OCR: ' + err.message + ' — thử lại, hoặc nhập tay nếu vẫn lỗi.', 'err');
     if (stream) stream.getTracks().forEach(t => t.stop());
   }
 });
 
-// ---------- photo capture ----------
+// ---------- photo capture (live preview + framing guide) ----------
 const PHOTO_LABELS = { cccd: 'CCCD', gplx: 'GPLX', portrait: 'Học viên' };
+let captureStream = null;
+let captureSlot = null;
 
-async function capturePhoto(){
-  const stream = await navigator.mediaDevices.getUserMedia({
+function openCaptureModal(slot){
+  captureSlot = slot;
+  $('captureLabel').textContent = 'Chụp ảnh: ' + PHOTO_LABELS[slot];
+  $('captureFrame').className = 'capture-frame ' + (slot === 'portrait' ? 'frame-portrait' : 'frame-document');
+  $('photoCaptureModal').style.display = 'block';
+  navigator.mediaDevices.getUserMedia({
     video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } }
+  }).then(stream => {
+    captureStream = stream;
+    $('captureVideo').srcObject = stream;
+  }).catch(err => {
+    setStatus('Không mở được camera: ' + err.message, 'err');
+    closeCaptureModal();
   });
-  const video = document.createElement('video');
-  video.srcObject = stream;
-  await video.play();
-  await new Promise(r => setTimeout(r, 600));
+}
+function closeCaptureModal(){
+  if (captureStream) captureStream.getTracks().forEach(t => t.stop());
+  captureStream = null;
+  $('photoCaptureModal').style.display = 'none';
+}
+$('btnCaptureCancel').addEventListener('click', closeCaptureModal);
+$('btnCaptureShot').addEventListener('click', () => {
+  const video = $('captureVideo');
   const canvas = document.createElement('canvas');
   // Cap size to keep the in-memory/ZIP footprint reasonable on phones
   const scale = Math.min(1, 1280 / video.videoWidth);
   canvas.width = video.videoWidth * scale;
   canvas.height = video.videoHeight * scale;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-  stream.getTracks().forEach(t => t.stop());
-  return canvas.toDataURL('image/jpeg', 0.82);
-}
+  draftPhotos[captureSlot] = canvas.toDataURL('image/jpeg', 0.82);
+  renderPhotoPreviews();
+  setStatus(`Đã chụp ảnh ${PHOTO_LABELS[captureSlot]}.`, 'ok');
+  closeCaptureModal();
+});
 
 function renderPhotoPreviews(){
   const wrap = $('photoPreviews');
@@ -616,43 +678,33 @@ function updatePhotoButtons(){
   });
 }
 document.querySelectorAll('.photobtn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const slot = btn.dataset.slot;
-    setStatus(`Đang mở camera để chụp ảnh ${PHOTO_LABELS[slot]}…`);
-    try{
-      draftPhotos[slot] = await capturePhoto();
-      renderPhotoPreviews();
-      setStatus(`Đã chụp ảnh ${PHOTO_LABELS[slot]}.`, 'ok');
-    }catch(err){
-      setStatus('Không chụp được ảnh: ' + err.message, 'err');
-    }
-  });
+  btn.addEventListener('click', () => openCaptureModal(btn.dataset.slot));
 });
 
 // ---------- entry list ----------
 $('btnAdd').addEventListener('click', () => {
   const entry = {
-    idNumber: $('f_idNumber').value.trim(),
-    oldId: $('f_oldId').value.trim(),
     fullName: $('f_fullName').value.trim(),
     dob: $('f_dob').value.trim(),
-    gender: $('f_gender').value.trim(),
-    address: $('f_address').value.trim(),
-    issueDate: $('f_issueDate').value.trim(),
     phone: $('f_phone').value.trim(),
     khoa: $('f_khoa').value.trim(),
     tuition: $('f_tuition').value.trim(),
-    docType: $('docType').value,
+    idNumber: $('f_idNumber').value.trim(),
+    oldId: $('f_oldId').value.trim(),
+    gender: $('f_gender').value.trim(),
+    address: $('f_address').value.trim(),
+    issueDate: $('f_issueDate').value.trim(),
+    gplxNumber: $('f_gplxNumber').value.trim(),
     licenseClass: $('f_licenseClass').value.trim(),
+    gplxIssueDate: $('f_gplxIssueDate').value.trim(),
     expiryDate: $('f_expiryDate').value.trim(),
     issuingAuthority: $('f_issuingAuthority').value.trim(),
     passDate: $('f_passDate').value.trim(),
-    docTypeLabel: $('docType').value === 'gplx' ? 'GPLX' : 'CCCD',
     source: lastSource,
     photos: { ...draftPhotos },
     synced: false
   };
-  if (!entry.idNumber && !entry.fullName){
+  if (!entry.idNumber && !entry.gplxNumber && !entry.fullName){
     setStatus('Chưa có dữ liệu để thêm.', 'err');
     return;
   }
@@ -660,11 +712,14 @@ $('btnAdd').addEventListener('click', () => {
   persistEntries();
   renderEntries();
   $('fieldsCard').style.display = 'none';
-  draftPhotos = {};
-  setStatus('Đã thêm vào danh sách. Sẵn sàng quét thẻ tiếp theo.', 'ok');
+  resetDraft();
+  setStatus('Đã thêm vào danh sách. Sẵn sàng quét học viên tiếp theo.', 'ok');
 });
 
-$('btnDiscard').addEventListener('click', () => { $('fieldsCard').style.display = 'none'; });
+$('btnDiscard').addEventListener('click', () => {
+  resetDraft();
+  $('fieldsCard').style.display = 'none';
+});
 
 function renderEntries(){
   const body = $('entriesBody');
@@ -674,11 +729,11 @@ function renderEntries(){
   entries.forEach((e, i) => {
     const tr = document.createElement('tr');
     const badge = e.synced ? '<span class="badge qr">Đã đồng bộ</span>' : '<span class="badge pending">Chưa đồng bộ</span>';
-    const typeTag = e.docType === 'gplx' ? ' <span class="badge ocr">GPLX</span>' : '';
+    const typeTag = (e.idNumber ? ' <span class="badge qr">CCCD</span>' : '') + (e.gplxNumber ? ' <span class="badge ocr">GPLX</span>' : '');
     const photoCount = e.photos ? Object.keys(e.photos).length : 0;
     const photoTag = photoCount ? ` <span class="badge pending">📷${photoCount}</span>` : '';
     tr.innerHTML = `<td class="name">${escapeHtml(e.fullName||'—')}${typeTag}${photoTag}</td>
-      <td class="name">${escapeHtml(e.idNumber||'—')}</td>
+      <td class="name">${escapeHtml(e.idNumber || e.gplxNumber || '—')}</td>
       <td>${badge}</td>
       <td><button class="del" data-i="${i}">Xoá</button></td>`;
     body.appendChild(tr);
@@ -697,7 +752,7 @@ function escapeHtml(s){
 renderEntries();
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'source', 'phone', 'khoa', 'tuition', 'docTypeLabel', 'licenseClass', 'expiryDate', 'issuingAuthority', 'passDate'];
+const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'source', 'phone', 'khoa', 'tuition', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate'];
 let formConfig = null;
 try { formConfig = JSON.parse(localStorage.getItem('cccd_form_config') || 'null'); } catch(e){ formConfig = null; }
 if (formConfig) $('formPrefillLink').value = formConfig.rawLink || '';
@@ -812,11 +867,11 @@ $('btnExportPhotos').addEventListener('click', async () => {
 
 // ---------- CSV export & encryption (no network required) ----------
 function entriesToCsv(list){
-  const headers = ['Loại giấy tờ','Họ tên','Số giấy tờ','Số CMND cũ','Ngày sinh','Giới tính/Hạng','Địa chỉ/Nơi cấp','Ngày cấp','Hạng bằng lái','Ngày hết hạn','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng'];
+  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Nguồn','Số điện thoại','Khóa','Học phí đã đóng','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Ngày hết hạn','Đơn vị cấp','Ngày trúng tuyển'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   const rows = list.map(e => [
-    e.docTypeLabel || (e.docType === 'gplx' ? 'GPLX' : 'CCCD'), e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate,
-    e.licenseClass, e.expiryDate, e.issuingAuthority, e.passDate, e.source, e.phone, e.khoa, e.tuition
+    e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.source, e.phone, e.khoa, e.tuition,
+    e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.expiryDate, e.issuingAuthority, e.passDate
   ].map(esc).join(','));
   return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel
 }

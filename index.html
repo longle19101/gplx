@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Quét CCCD → Google Sheet</title>
+<title>Quét CCCD/GPLX → Google Sheet</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
     --ink:#13202b;
@@ -100,20 +101,31 @@
   details summary{cursor:pointer;font-size:.78rem;color:var(--brand-2);font-weight:600;}
   .hint{font-size:.74rem;color:#5b6b75;line-height:1.4;margin-top:6px;}
   footer{text-align:center;font-size:.7rem;color:#8a9aa4;padding:20px 14px 0;}
+  .photobtn{flex:1;font-size:.76rem;padding:8px 6px;}
+  .photobtn.has-photo{border-color:var(--green);color:var(--green);}
+  .photo-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--line);}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .photo-thumb .lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(11,61,92,.85);color:#fff;font-size:.55rem;text-align:center;padding:1px 0;}
+  .photo-thumb .rm{position:absolute;top:1px;right:1px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:.6rem;line-height:1;cursor:pointer;}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Quét CCCD → Google Sheet</h1>
-  <p>Quét QR trên căn cước công dân, hoặc chụp ảnh để nhận diện chữ (OCR)</p>
+  <h1>Quét CCCD/GPLX → Google Sheet</h1>
+  <p>Quét QR trên CCCD hoặc GPLX, chụp ảnh giấy tờ & học viên, nhận diện chữ (OCR)</p>
 </header>
 
 <main>
 
   <div class="card">
     <h2>Máy quét</h2>
-    <div id="reader-wrap" class="idle">
+    <label>Loại giấy tờ</label>
+    <select id="docType" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-family:var(--sans);font-size:.88rem;background:#fbfcfd;">
+      <option value="cccd">Căn cước công dân (CCCD)</option>
+      <option value="gplx">Giấy phép lái xe (GPLX)</option>
+    </select>
+    <div id="reader-wrap" class="idle" style="margin-top:10px;">
       <div id="reader"></div>
       <div class="viewfinder-frame">
         <div class="corner c-tl"></div><div class="corner c-tr"></div>
@@ -132,22 +144,38 @@
     <div class="row">
       <button class="gold" id="btnOcr">Không có QR → Chụp & nhận diện OCR</button>
     </div>
-    <div id="status" class="status">Nhấn "Bắt đầu quét QR" và hướng camera vào mã QR trên thẻ.</div>
+    <div id="status" class="status">Chọn loại giấy tờ, nhấn "Bắt đầu quét QR" và hướng camera vào mã QR.</div>
   </div>
 
   <div class="card" id="fieldsCard" style="display:none;">
     <h2>Kiểm tra thông tin <span id="srcBadge"></span></h2>
-    <label>Số CCCD</label><input id="f_idNumber">
-    <label>Số CMND cũ</label><input id="f_oldId">
+    <label id="lbl_idNumber">Số CCCD</label><input id="f_idNumber">
+    <label id="lbl_oldId">Số CMND cũ</label><input id="f_oldId">
     <label>Họ và tên</label><input id="f_fullName">
     <label>Ngày sinh</label><input id="f_dob" placeholder="dd/mm/yyyy">
-    <label>Giới tính</label><input id="f_gender">
-    <label>Địa chỉ</label><textarea id="f_address"></textarea>
-    <label>Ngày cấp</label><input id="f_issueDate" placeholder="dd/mm/yyyy">
+    <label id="lbl_gender">Giới tính</label><input id="f_gender">
+    <label id="lbl_address">Địa chỉ</label><textarea id="f_address"></textarea>
+    <label id="lbl_issueDate">Ngày cấp</label><input id="f_issueDate" placeholder="dd/mm/yyyy">
+    <div id="gplxOnly" style="display:none;">
+      <label>Hạng bằng lái (GPLX)</label><input id="f_licenseClass" placeholder="VD: A1, B2...">
+      <label>Ngày hết hạn</label><input id="f_expiryDate" placeholder="dd/mm/yyyy">
+      <label>Đơn vị cấp</label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
+      <label>Ngày trúng tuyển (đạt kết quả sát hạch)</label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
+    </div>
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <label>Số điện thoại</label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
     <label>Khóa</label><input id="f_khoa" placeholder="VD: K15">
     <label>Số tiền học phí đã đóng</label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
+    <h2>Ảnh đính kèm</h2>
+    <div class="row">
+      <button class="ghost photobtn" data-slot="cccd">📷 Ảnh CCCD</button>
+      <button class="ghost photobtn" data-slot="gplx">📷 Ảnh GPLX</button>
+      <button class="ghost photobtn" data-slot="portrait">📷 Ảnh học viên</button>
+    </div>
+    <div class="row" id="photoPreviews" style="flex-wrap:wrap;"></div>
+
     <details style="margin-top:8px;">
       <summary>Dữ liệu thô</summary>
       <div class="hint" id="rawData" style="white-space:pre-wrap;"></div>
@@ -166,7 +194,7 @@
       <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
     </div>
     <div id="formSetupStatus" class="status"></div>
-    <div class="hint">Chỉ cần dán 1 lần. Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng.</div>
+    <div class="hint">Chỉ cần dán 1 lần. Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD/GPLX, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Loại giấy tờ, Hạng GPLX, Ngày hết hạn (GPLX), Đơn vị cấp (GPLX), Ngày trúng tuyển (GPLX).</div>
   </div>
 
   <div class="card">
@@ -182,6 +210,12 @@
       <button class="primary" id="btnSubmitForm">Gửi tất cả lên Google Sheet (qua Form)</button>
     </div>
     <div id="formSubmitStatus" class="status"></div>
+
+    <div class="row">
+      <button class="gold" id="btnExportPhotos">Tải tất cả ảnh (file ZIP)</button>
+    </div>
+    <div id="photoExportStatus" class="status"></div>
+    <div class="hint">Ảnh CHỈ lưu tạm trong phiên làm việc này (không lưu khi tải lại trang) — hãy tải file ZIP trước khi đóng trình duyệt.</div>
 
     <details style="margin-top:14px;">
       <summary>Cách khác: xuất file (không cần mạng)</summary>
@@ -238,6 +272,7 @@ const $ = id => document.getElementById(id);
 let html5QrCode = null;
 let entries = [];
 let lastSource = 'qr';
+let draftPhotos = {}; // { cccd: dataURL, gplx: dataURL, portrait: dataURL } for the entry currently being reviewed
 
 // ---------- persistence ----------
 const savedUrl = localStorage.getItem('cccd_script_url');
@@ -249,8 +284,31 @@ const savedEntries = localStorage.getItem('cccd_entries');
 if (savedEntries) { try { entries = JSON.parse(savedEntries); } catch(e){ entries = []; } }
 
 function persistEntries(){
-  localStorage.setItem('cccd_entries', JSON.stringify(entries));
+  // Photos are NOT saved to localStorage (they'd blow past the ~5-10MB quota
+  // fast) — they only live in memory for the current browser session. Export
+  // photos via "Tải ảnh (ZIP)" before closing/refreshing the page.
+  const stripped = entries.map(({ photos, ...rest }) => rest);
+  localStorage.setItem('cccd_entries', JSON.stringify(stripped));
 }
+
+// ---------- document type ----------
+const DOC_LABELS = {
+  cccd: { idNumber: 'Số CCCD', oldId: 'Số CMND cũ', gender: 'Giới tính', address: 'Địa chỉ', issueDate: 'Ngày cấp' },
+  gplx: { idNumber: 'Số GPLX', oldId: 'Số cũ (nếu có)', gender: 'Hạng thấp nhất', address: 'Nơi cấp', issueDate: 'Ngày cấp' }
+};
+$('docType').addEventListener('change', () => {
+  const t = $('docType').value;
+  const L = DOC_LABELS[t];
+  $('lbl_idNumber').textContent = L.idNumber;
+  $('lbl_oldId').textContent = L.oldId;
+  $('lbl_gender').textContent = L.gender;
+  $('lbl_address').textContent = L.address;
+  $('lbl_issueDate').textContent = L.issueDate;
+  $('gplxOnly').style.display = t === 'gplx' ? 'block' : 'none';
+  $('status').textContent = t === 'gplx'
+    ? 'Đang quét Giấy phép lái xe — hướng camera vào mã QR trên bằng lái.'
+    : 'Chọn loại giấy tờ, nhấn "Bắt đầu quét QR" và hướng camera vào mã QR.';
+});
 
 // ---------- CCCD QR parsing ----------
 // Standard VNeID / CCCD QR payload: fields separated by "|"
@@ -272,6 +330,50 @@ function parseCccdQr(raw){
     issueDate: fmtDate(parts[6]),
     raw
   };
+}
+
+// ---------- GPLX QR parsing ----------
+// Confirmed real-world format: fields separated by ";" (semicolon):
+// 0: license number, 1: full name, 2: DOB (ddmmyyyy), 3: class,
+// 4: issue date (ddmmyyyy), 5: expiry date (ddmmyyyy), 6: extra field
+// (observed value was a province name — meaning unconfirmed, stored as-is).
+// "Ngày trúng tuyển" (date passed the driving test) is only printed on the
+// back of the physical card, not in the QR — that's a manual-entry field.
+function parseGplxQr(raw){
+  const fmtDate = s => {
+    if (!s || s.length !== 8) return s || '';
+    return `${s.slice(0,2)}/${s.slice(2,4)}/${s.slice(4,8)}`;
+  };
+  if (raw.includes(';')){
+    const parts = raw.split(';');
+    return {
+      idNumber: parts[0] || '',
+      oldId: '',
+      fullName: parts[1] || '',
+      dob: fmtDate(parts[2]) || parts[2] || '',
+      gender: '',
+      address: '',
+      issueDate: fmtDate(parts[4]) || parts[4] || '',
+      licenseClass: parts[3] || '',
+      expiryDate: fmtDate(parts[5]) || parts[5] || '',
+      issuingAuthority: parts[6] || '',
+      raw
+    };
+  }
+  // Fallback for other/older formats seen in the wild — best effort only,
+  // always double check GPLX fields since this parser is less certain than
+  // the CCCD one.
+  if (raw.includes('|') && !raw.startsWith('http')){
+    const parts = raw.split('|');
+    return {
+      idNumber: parts[0] || '', oldId: '', fullName: parts[1] || '',
+      dob: fmtDate(parts[2]) || parts[2] || '', gender: '', address: '',
+      issueDate: fmtDate(parts[5]) || parts[5] || '',
+      licenseClass: parts[3] || '', expiryDate: '', issuingAuthority: parts[4] || '',
+      raw
+    };
+  }
+  return { idNumber: '', oldId: '', fullName: '', dob: '', gender: '', address: '', issueDate: '', licenseClass: '', expiryDate: '', issuingAuthority: '', raw };
 }
 
 // best-effort field extraction from loose OCR text
@@ -316,6 +418,12 @@ function showFields(data, source){
   $('f_phone').value = '';
   $('f_khoa').value = '';
   $('f_tuition').value = '';
+  $('f_licenseClass').value = data.licenseClass || '';
+  $('f_expiryDate').value = data.expiryDate || '';
+  $('f_issuingAuthority').value = data.issuingAuthority || '';
+  $('f_passDate').value = '';
+  draftPhotos = {};
+  renderPhotoPreviews();
   $('rawData').textContent = data.raw;
   $('fieldsCard').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -352,7 +460,7 @@ $('btnStart').addEventListener('click', async () => {
       },
       (decodedText) => {
         setStatus('Đã đọc được mã QR.', 'ok');
-        const data = parseCccdQr(decodedText);
+        const data = $('docType').value === 'gplx' ? parseGplxQr(decodedText) : parseCccdQr(decodedText);
         showFields(data, 'qr');
         stopScanner();
       },
@@ -462,6 +570,65 @@ $('btnOcr').addEventListener('click', async () => {
   }
 });
 
+// ---------- photo capture ----------
+const PHOTO_LABELS = { cccd: 'CCCD', gplx: 'GPLX', portrait: 'Học viên' };
+
+async function capturePhoto(){
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } }
+  });
+  const video = document.createElement('video');
+  video.srcObject = stream;
+  await video.play();
+  await new Promise(r => setTimeout(r, 600));
+  const canvas = document.createElement('canvas');
+  // Cap size to keep the in-memory/ZIP footprint reasonable on phones
+  const scale = Math.min(1, 1280 / video.videoWidth);
+  canvas.width = video.videoWidth * scale;
+  canvas.height = video.videoHeight * scale;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  stream.getTracks().forEach(t => t.stop());
+  return canvas.toDataURL('image/jpeg', 0.82);
+}
+
+function renderPhotoPreviews(){
+  const wrap = $('photoPreviews');
+  wrap.innerHTML = '';
+  Object.keys(draftPhotos).forEach(slot => {
+    if (!draftPhotos[slot]) return;
+    const div = document.createElement('div');
+    div.className = 'photo-thumb';
+    div.innerHTML = `<img src="${draftPhotos[slot]}"><span class="lbl">${PHOTO_LABELS[slot]}</span><button class="rm" data-slot="${slot}">✕</button>`;
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('.rm').forEach(btn => {
+    btn.addEventListener('click', () => {
+      delete draftPhotos[btn.dataset.slot];
+      renderPhotoPreviews();
+      updatePhotoButtons();
+    });
+  });
+  updatePhotoButtons();
+}
+function updatePhotoButtons(){
+  document.querySelectorAll('.photobtn').forEach(btn => {
+    btn.classList.toggle('has-photo', !!draftPhotos[btn.dataset.slot]);
+  });
+}
+document.querySelectorAll('.photobtn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const slot = btn.dataset.slot;
+    setStatus(`Đang mở camera để chụp ảnh ${PHOTO_LABELS[slot]}…`);
+    try{
+      draftPhotos[slot] = await capturePhoto();
+      renderPhotoPreviews();
+      setStatus(`Đã chụp ảnh ${PHOTO_LABELS[slot]}.`, 'ok');
+    }catch(err){
+      setStatus('Không chụp được ảnh: ' + err.message, 'err');
+    }
+  });
+});
+
 // ---------- entry list ----------
 $('btnAdd').addEventListener('click', () => {
   const entry = {
@@ -475,7 +642,14 @@ $('btnAdd').addEventListener('click', () => {
     phone: $('f_phone').value.trim(),
     khoa: $('f_khoa').value.trim(),
     tuition: $('f_tuition').value.trim(),
+    docType: $('docType').value,
+    licenseClass: $('f_licenseClass').value.trim(),
+    expiryDate: $('f_expiryDate').value.trim(),
+    issuingAuthority: $('f_issuingAuthority').value.trim(),
+    passDate: $('f_passDate').value.trim(),
+    docTypeLabel: $('docType').value === 'gplx' ? 'GPLX' : 'CCCD',
     source: lastSource,
+    photos: { ...draftPhotos },
     synced: false
   };
   if (!entry.idNumber && !entry.fullName){
@@ -486,6 +660,7 @@ $('btnAdd').addEventListener('click', () => {
   persistEntries();
   renderEntries();
   $('fieldsCard').style.display = 'none';
+  draftPhotos = {};
   setStatus('Đã thêm vào danh sách. Sẵn sàng quét thẻ tiếp theo.', 'ok');
 });
 
@@ -499,7 +674,10 @@ function renderEntries(){
   entries.forEach((e, i) => {
     const tr = document.createElement('tr');
     const badge = e.synced ? '<span class="badge qr">Đã đồng bộ</span>' : '<span class="badge pending">Chưa đồng bộ</span>';
-    tr.innerHTML = `<td class="name">${escapeHtml(e.fullName||'—')}</td>
+    const typeTag = e.docType === 'gplx' ? ' <span class="badge ocr">GPLX</span>' : '';
+    const photoCount = e.photos ? Object.keys(e.photos).length : 0;
+    const photoTag = photoCount ? ` <span class="badge pending">📷${photoCount}</span>` : '';
+    tr.innerHTML = `<td class="name">${escapeHtml(e.fullName||'—')}${typeTag}${photoTag}</td>
       <td class="name">${escapeHtml(e.idNumber||'—')}</td>
       <td>${badge}</td>
       <td><button class="del" data-i="${i}">Xoá</button></td>`;
@@ -519,7 +697,7 @@ function escapeHtml(s){
 renderEntries();
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'source', 'phone', 'khoa', 'tuition'];
+const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'source', 'phone', 'khoa', 'tuition', 'docTypeLabel', 'licenseClass', 'expiryDate', 'issuingAuthority', 'passDate'];
 let formConfig = null;
 try { formConfig = JSON.parse(localStorage.getItem('cccd_form_config') || 'null'); } catch(e){ formConfig = null; }
 if (formConfig) $('formPrefillLink').value = formConfig.rawLink || '';
@@ -604,11 +782,42 @@ $('btnSubmitForm').addEventListener('click', async () => {
   el.className = 'status ok';
 });
 
+// ---------- photo ZIP export ----------
+$('btnExportPhotos').addEventListener('click', async () => {
+  const el = $('photoExportStatus');
+  const withPhotos = entries.filter(e => e.photos && Object.keys(e.photos).length);
+  if (!withPhotos.length){ el.textContent = 'Chưa có ảnh nào được chụp trong phiên này.'; el.className = 'status err'; return; }
+  el.textContent = 'Đang đóng gói ảnh...';
+  el.className = 'status';
+  const zip = new JSZip();
+  withPhotos.forEach((e, i) => {
+    const safeName = (e.fullName || e.idNumber || ('hoc_vien_' + i)).replace(/[^\p{L}\p{N}]+/gu, '_');
+    const folder = zip.folder(`${i+1}_${safeName}`);
+    Object.entries(e.photos).forEach(([slot, dataUrl]) => {
+      const base64 = dataUrl.split(',')[1];
+      folder.file(`${PHOTO_LABELS[slot] || slot}.jpg`, base64, { base64: true });
+    });
+  });
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'anh-hoc-vien-' + Date.now() + '.zip';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  el.textContent = `Đã tải file ZIP chứa ảnh của ${withPhotos.length} học viên.`;
+  el.className = 'status ok';
+});
+
 // ---------- CSV export & encryption (no network required) ----------
 function entriesToCsv(list){
-  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Nguồn','Số điện thoại','Khóa','Học phí đã đóng'];
+  const headers = ['Loại giấy tờ','Họ tên','Số giấy tờ','Số CMND cũ','Ngày sinh','Giới tính/Hạng','Địa chỉ/Nơi cấp','Ngày cấp','Hạng bằng lái','Ngày hết hạn','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
-  const rows = list.map(e => [e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.source, e.phone, e.khoa, e.tuition].map(esc).join(','));
+  const rows = list.map(e => [
+    e.docTypeLabel || (e.docType === 'gplx' ? 'GPLX' : 'CCCD'), e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate,
+    e.licenseClass, e.expiryDate, e.issuingAuthority, e.passDate, e.source, e.phone, e.khoa, e.tuition
+  ].map(esc).join(','));
   return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel
 }
 

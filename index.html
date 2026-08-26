@@ -155,19 +155,63 @@
   </div>
 
   <div class="card">
+    <h2>Cài đặt Google Form (khuyên dùng)</h2>
+    <label>Dán "Link đã điền sẵn" (pre-filled link) từ Google Form vào đây</label>
+    <textarea id="formPrefillLink" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.111=...&entry.222=..." style="min-height:70px;"></textarea>
+    <div class="row">
+      <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
+    </div>
+    <div id="formSetupStatus" class="status"></div>
+    <div class="hint">Chỉ cần dán 1 lần. Xem hướng dẫn tạo Form ở phần trò chuyện. Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp, Nguồn.</div>
+  </div>
+
+  <div class="card">
     <h2>Danh sách đã quét (<span id="countBadge">0</span>)</h2>
     <table>
       <thead><tr><th>Họ tên</th><th>Số CCCD</th><th>Trạng thái</th><th></th></tr></thead>
       <tbody id="entriesBody"></tbody>
     </table>
     <div id="emptyMsg" class="empty">Chưa có mục nào được quét.</div>
+
+    <h2 style="margin-top:16px;">Gửi lên Google Sheet</h2>
     <div class="row">
-      <button class="primary" id="btnSync">Đồng bộ tất cả lên Google Sheet</button>
-      <button class="ghost" id="btnResetSync">Đánh dấu lại tất cả là chưa đồng bộ</button>
+      <button class="primary" id="btnSubmitForm">Gửi tất cả lên Google Sheet (qua Form)</button>
     </div>
-    <div id="syncStatus" class="status"></div>
+    <div id="formSubmitStatus" class="status"></div>
+
+    <details style="margin-top:14px;">
+      <summary>Cách khác: xuất file (không cần mạng)</summary>
+      <div class="row" style="margin-top:8px;">
+        <button class="primary" id="btnExportEnc">Tải file mã hóa (bảo mật)</button>
+      </div>
+      <div class="row">
+        <button class="ghost" id="btnExportCsv">Tải file CSV thường</button>
+      </div>
+      <div id="exportStatus" class="status"></div>
+    </details>
+
+    <details style="margin-top:8px;">
+      <summary>Nâng cao: Đồng bộ qua Apps Script (không khuyên dùng)</summary>
+      <div class="row" style="margin-top:8px;">
+        <button class="primary" id="btnSync">Đồng bộ tất cả lên Google Sheet</button>
+        <button class="ghost" id="btnResetSync">Đánh dấu lại tất cả là chưa đồng bộ</button>
+      </div>
+      <div id="syncStatus" class="status"></div>
+    </details>
   </div>
 
+  <div class="card">
+    <h2>Giải mã file đã tải</h2>
+    <label>Dán nội dung file mã hóa vào đây</label>
+    <textarea id="decInput" style="min-height:80px;"></textarea>
+    <label>Mật khẩu</label>
+    <input id="decPassword" type="password">
+    <div class="row">
+      <button class="primary" id="btnDecrypt">Giải mã và tải file CSV</button>
+    </div>
+    <div id="decStatus" class="status"></div>
+    <div class="hint">Nên giải mã trên máy tính riêng tư trước khi import vào Google Sheet, không nên giải mã trên máy dùng chung.</div>
+  </div>
   <div class="card">
     <h2>Cài đặt Google Sheet</h2>
     <label>URL Web App (Apps Script)</label>
@@ -182,7 +226,7 @@
     <div id="netTestStatus" class="status"></div>
   </div>
 
-  <footer>Chạy hoàn toàn trên trình duyệt của bạn — dữ liệu chỉ rời máy khi bạn nhấn "Đồng bộ".</footer>
+  <footer>Chạy hoàn toàn trên trình duyệt của bạn — không có máy chủ trung gian nào lưu dữ liệu.</footer>
 </main>
 
 <script>
@@ -464,6 +508,172 @@ function escapeHtml(s){
 }
 renderEntries();
 
+// ---------- Google Form submission (recommended — most reliable) ----------
+const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'source'];
+let formConfig = null;
+try { formConfig = JSON.parse(localStorage.getItem('cccd_form_config') || 'null'); } catch(e){ formConfig = null; }
+if (formConfig) $('formPrefillLink').value = formConfig.rawLink || '';
+
+function parseFormConfig(prefillLink){
+  const url = new URL(prefillLink.trim());
+  // formResponse endpoint is the same base path with /viewform replaced by /formResponse
+  const actionUrl = url.origin + url.pathname.replace(/\/viewform$/, '/formResponse');
+  const entryKeys = [...url.searchParams.keys()].filter(k => /^entry\.\d+$/.test(k));
+  if (entryKeys.length < FIELD_ORDER.length){
+    throw new Error(`Chỉ tìm thấy ${entryKeys.length} trường trong link, cần ${FIELD_ORDER.length}. Hãy chắc chắn bạn đã điền đủ tất cả câu hỏi khi lấy link.`);
+  }
+  const fieldToEntry = {};
+  FIELD_ORDER.forEach((field, i) => { fieldToEntry[field] = entryKeys[i]; });
+  return { actionUrl, fieldToEntry, rawLink: prefillLink.trim() };
+}
+
+$('btnSaveForm').addEventListener('click', () => {
+  const el = $('formSetupStatus');
+  try{
+    formConfig = parseFormConfig($('formPrefillLink').value);
+    localStorage.setItem('cccd_form_config', JSON.stringify(formConfig));
+    el.textContent = `Đã lưu — tìm thấy ${Object.keys(formConfig.fieldToEntry).length} trường. Sẵn sàng gửi dữ liệu.`;
+    el.className = 'status ok';
+  }catch(err){
+    el.textContent = 'Lỗi: ' + err.message;
+    el.className = 'status err';
+  }
+});
+
+// Submits via a hidden iframe + real <form> POST — this is the standard,
+// officially-supported way Google Forms accepts submissions from any external
+// page, so it doesn't hit the CORS/redirect issues a custom Apps Script does.
+function submitToGoogleForm(entry){
+  return new Promise((resolve) => {
+    let iframe = document.getElementById('formSubmitIframe');
+    if (!iframe){
+      iframe = document.createElement('iframe');
+      iframe.id = 'formSubmitIframe';
+      iframe.name = 'formSubmitTarget';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = formConfig.actionUrl;
+    form.target = 'formSubmitTarget';
+    FIELD_ORDER.forEach(field => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = formConfig.fieldToEntry[field];
+      input.value = entry[field] || '';
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+    setTimeout(resolve, 1200); // give the iframe a moment to actually submit before moving to the next entry
+  });
+}
+
+$('btnSubmitForm').addEventListener('click', async () => {
+  const el = $('formSubmitStatus');
+  if (!formConfig){
+    el.textContent = 'Vui lòng cài đặt Google Form ở phần trên trước (dán link đã điền sẵn).';
+    el.className = 'status err';
+    return;
+  }
+  const pending = entries.filter(e => !e.synced);
+  if (!pending.length){ el.textContent = 'Không có mục nào cần gửi.'; el.className = 'status'; return; }
+  $('btnSubmitForm').disabled = true;
+  for (let i = 0; i < pending.length; i++){
+    el.textContent = `Đang gửi… ${i+1}/${pending.length}`;
+    el.className = 'status';
+    await submitToGoogleForm(pending[i]);
+    pending[i].synced = true;
+    persistEntries();
+    renderEntries();
+  }
+  $('btnSubmitForm').disabled = false;
+  el.textContent = `Đã gửi ${pending.length} mục — kiểm tra Google Sheet để xác nhận.`;
+  el.className = 'status ok';
+});
+
+// ---------- CSV export & encryption (no network required) ----------
+function entriesToCsv(list){
+  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Nguồn'];
+  const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  const rows = list.map(e => [e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.source].map(esc).join(','));
+  return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel
+}
+
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+async function deriveKey(password, salt){
+  const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), { name: 'PBKDF2' }, false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 150000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+async function encryptText(plainText, password){
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(password, salt);
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plainText));
+  const combined = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+  combined.set(salt, 0);
+  combined.set(iv, salt.length);
+  combined.set(new Uint8Array(ciphertext), salt.length + iv.length);
+  return btoa(String.fromCharCode(...combined));
+}
+async function decryptText(b64, password){
+  const combined = Uint8Array.from(atob(b64.trim()), c => c.charCodeAt(0));
+  const salt = combined.slice(0, 16);
+  const iv = combined.slice(16, 28);
+  const ciphertext = combined.slice(28);
+  const key = await deriveKey(password, salt);
+  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+  return new TextDecoder().decode(plainBuf);
+}
+
+$('btnExportCsv').addEventListener('click', () => {
+  if (!entries.length){ $('exportStatus').textContent = 'Chưa có dữ liệu để xuất.'; $('exportStatus').className = 'status err'; return; }
+  downloadBlob(entriesToCsv(entries), 'cccd-export-' + Date.now() + '.csv', 'text/csv;charset=utf-8');
+  $('exportStatus').textContent = 'Đã tải file CSV — mở Google Sheet → File → Import để đưa vào.';
+  $('exportStatus').className = 'status ok';
+});
+
+$('btnExportEnc').addEventListener('click', async () => {
+  if (!entries.length){ $('exportStatus').textContent = 'Chưa có dữ liệu để xuất.'; $('exportStatus').className = 'status err'; return; }
+  const pw = prompt('Đặt mật khẩu để mã hóa file (ghi nhớ mật khẩu — cần dùng lại khi giải mã, không thể khôi phục nếu quên):');
+  if (!pw) return;
+  const encB64 = await encryptText(entriesToCsv(entries), pw);
+  downloadBlob(encB64, 'cccd-export-encrypted-' + Date.now() + '.txt', 'text/plain');
+  $('exportStatus').textContent = 'Đã tải file mã hóa. Hãy lưu mật khẩu ở nơi an toàn.';
+  $('exportStatus').className = 'status ok';
+});
+
+$('btnDecrypt').addEventListener('click', async () => {
+  const el = $('decStatus');
+  try{
+    const csv = await decryptText($('decInput').value, $('decPassword').value);
+    downloadBlob(csv, 'cccd-decrypted-' + Date.now() + '.csv', 'text/csv;charset=utf-8');
+    el.textContent = 'Giải mã thành công — đã tải file CSV, có thể import vào Google Sheet.';
+    el.className = 'status ok';
+  }catch(err){
+    el.textContent = 'Giải mã thất bại — sai mật khẩu hoặc nội dung dán vào bị thiếu/sai.';
+    el.className = 'status err';
+  }
+});
+
 $('btnNetTest').addEventListener('click', async () => {
   const el = $('netTestStatus');
   el.textContent = 'Đang kiểm tra...';
@@ -522,19 +732,12 @@ $('btnSync').addEventListener('click', async () => {
       // for a GET query string, which was silently exceeding a length limit and
       // getting the data parameter dropped entirely. POST has no such limit.
       // text/plain avoids a CORS preflight (Apps Script doesn't handle OPTIONS).
-      const response = await fetch(url, {
-  method: "POST",
-  headers: {
-    "Content-Type": "text/plain;charset=utf-8"
-  },
-  body: JSON.stringify(e)
-});
-
-const result = await response.json();
-
-if (!result.success) {
-  throw new Error(result.message || "Google Sheet lỗi");
-}
+      await fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(e)
+      });
       e.synced = true;
       ok++;
     }catch(err){

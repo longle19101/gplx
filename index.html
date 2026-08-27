@@ -883,7 +883,7 @@ const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address'
 // Hard-coded default so the app works out of the box with no setup. The
 // "Cài đặt nâng cao" section (collapsed) can still override this if the Form
 // is ever rebuilt with a different link.
-const DEFAULT_FORM_LINK = 'https://docs.google.com/forms/d/e/1FAIpQLSc_QLkhYws6bWFfh1HufU8VxTtilVaEaIJeavU_LM532_NGlA/viewform?usp=pp_url&entry.721717004=LONG&entry.220886775=LONG&entry.1878504099=LONG&entry.209085692=LONG&entry.1001410458=LONG&entry.1237451213=LONG&entry.1604608859=LONG&entry.2124622910=LONG&entry.1873787372=LONG&entry.1425124983=LONG&entry.974898262=LONG&entry.968258207=LONG&entry.700911909=LONG&entry.1948972260=LONG&entry.955486346=LONG&entry.1281859790=LONG&entry.1959319096=LONG&entry.204427173=LONG&entry.1342035105=LONG';
+const DEFAULT_FORM_LINK = 'https://docs.google.com/forms/d/e/1FAIpQLSc_QLkhYws6bWFfh1HufU8VxTtilVaEaIJeavU_LM532_NGlA/viewform?usp=pp_url&entry.721717004=1&entry.220886775=1&entry.1878504099=1&entry.209085692=22&entry.1001410458=22&entry.1237451213=22&entry.1604608859=22&entry.1873787372=22&entry.1425124983=22&entry.974898262=222&entry.2124622910=22&entry.700911909=22&entry.1948972260=22&entry.955486346=22&entry.1281859790=22&entry.1959319096=22&entry.204427173=22&entry.1342035105=22&entry.968258207=22';
 let formConfig = null;
 try { formConfig = JSON.parse(localStorage.getItem('cccd_form_config') || 'null'); } catch(e){ formConfig = null; }
 if (!formConfig){

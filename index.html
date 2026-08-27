@@ -108,8 +108,7 @@
   .photo-thumb .lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(11,61,92,.85);color:#fff;font-size:.55rem;text-align:center;padding:1px 0;}
   .photo-thumb .rm{position:absolute;top:1px;right:1px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:.6rem;line-height:1;cursor:pointer;}
   .capture-frame{position:absolute;pointer-events:none;border:2px solid rgba(200,150,30,.9);border-radius:12px;}
-  .capture-frame.frame-document{left:6%;right:6%;top:32%;bottom:32%;} /* ID-card-shaped landscape guide */
-  .capture-frame.frame-portrait{left:22%;right:22%;top:14%;bottom:26%;border-radius:50%/40%;} /* face/portrait guide */
+  .capture-frame.frame-portrait{border-radius:50%/40%;}
   .capture-frame .corner{position:absolute;width:22px;height:22px;border:3px solid var(--gold);}
   .capture-frame .c-tl{top:-3px;left:-3px;border-right:none;border-bottom:none;}
   .capture-frame .c-tr{top:-3px;right:-3px;border-left:none;border-bottom:none;}
@@ -122,7 +121,24 @@
 <header>
   <h1>Quét CCCD/GPLX → Google Sheet</h1>
   <p>Quét QR trên CCCD hoặc GPLX, chụp ảnh giấy tờ & học viên, nhận diện chữ (OCR)</p>
+  <div style="margin-top:8px;font-size:.78rem;display:flex;justify-content:space-between;align-items:center;opacity:.9;">
+    <span>Đang đăng nhập: <strong id="currentSaleName">—</strong></span>
+    <button id="btnLogout" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:.72rem;">Đăng xuất</button>
+  </div>
 </header>
+
+<div id="loginOverlay" style="position:fixed;inset:0;background:var(--paper);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;">
+  <div style="max-width:360px;width:100%;background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;">
+    <h2 style="margin:0 0 4px;color:var(--brand);font-size:1.05rem;">Đăng nhập</h2>
+    <p class="hint" style="margin:0 0 16px;">Nhập tên đăng nhập được cấp để sử dụng công cụ quét.</p>
+    <label>Tên đăng nhập</label><input id="loginUser" autocomplete="username">
+    <label>Mật khẩu</label><input id="loginPass" type="password" autocomplete="current-password">
+    <div class="row" style="margin-top:14px;">
+      <button class="primary" id="btnLogin">Đăng nhập</button>
+    </div>
+    <div id="loginStatus" class="status err"></div>
+  </div>
+</div>
 
 <main>
 
@@ -181,6 +197,7 @@
     <label>Số điện thoại</label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
     <label>Khóa</label><input id="f_khoa" placeholder="VD: K15">
     <label>Số tiền học phí đã đóng</label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
+    <label>Sale</label><input id="f_sale" placeholder="Tên nhân viên sale">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Ảnh đính kèm</h2>
@@ -237,6 +254,11 @@
     </div>
     <div id="photoExportStatus" class="status"></div>
     <div class="hint">Ảnh CHỈ lưu tạm trong phiên làm việc này (không lưu khi tải lại trang) — hãy tải file ZIP trước khi đóng trình duyệt.</div>
+
+    <div class="row" style="margin-top:14px;">
+      <button class="ghost" id="btnClearAll" style="border-color:var(--red);color:var(--red);">🗑️ Xoá toàn bộ danh sách đã quét</button>
+    </div>
+    <div id="clearAllStatus" class="status"></div>
   </div>
 
   <details class="card">
@@ -249,7 +271,7 @@
         <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
       </div>
       <div id="formSetupStatus" class="status"></div>
-      <div class="hint">Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn, Đơn vị cấp, Ngày trúng tuyển, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng.</div>
+      <div class="hint">Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn, Đơn vị cấp, Ngày trúng tuyển, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Sale.</div>
 
       <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
       <h2>Cách khác: xuất file (không cần mạng)</h2>
@@ -295,6 +317,47 @@
 
 <script>
 const $ = id => document.getElementById(id);
+
+// ---------- simple login gate ----------
+// NOTE: this page has no server — this is a lightweight gate to stop casual
+// access and to tag each submission with who sent it, NOT real security.
+// Anyone who views the page source can see this list. Edit it with your
+// team's real usernames/passwords below:
+const USERS = [
+  { username: 'sale1', password: 'doimatkhaunay1' },
+  { username: 'sale2', password: 'doimatkhaunay2' },
+  // { username: 'ten_khac', password: 'mat_khau_khac' },
+];
+
+function checkLogin(){
+  const saved = localStorage.getItem('cccd_current_sale');
+  if (saved && USERS.some(u => u.username === saved)){
+    $('loginOverlay').style.display = 'none';
+    $('currentSaleName').textContent = saved;
+  } else {
+    $('loginOverlay').style.display = 'flex';
+    $('currentSaleName').textContent = '—';
+  }
+}
+$('btnLogin').addEventListener('click', () => {
+  const u = $('loginUser').value.trim();
+  const p = $('loginPass').value;
+  const match = USERS.find(x => x.username === u && x.password === p);
+  if (match){
+    localStorage.setItem('cccd_current_sale', u);
+    $('loginStatus').textContent = '';
+    checkLogin();
+  } else {
+    $('loginStatus').textContent = 'Sai tên đăng nhập hoặc mật khẩu.';
+  }
+});
+$('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnLogin').click(); });
+$('btnLogout').addEventListener('click', () => {
+  localStorage.removeItem('cccd_current_sale');
+  checkLogin();
+});
+checkLogin();
+
 let html5QrCode = null;
 let entries = [];
 let lastSource = 'qr';
@@ -426,6 +489,7 @@ function resetDraft(){
    'f_idNumber','f_oldId','f_gender','f_address','f_issueDate',
    'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_expiryDate','f_issuingAuthority','f_passDate']
     .forEach(id => { $(id).value = ''; });
+  $('f_sale').value = localStorage.getItem('cccd_current_sale') || '';
   $('cccdBadge').textContent = 'Chưa quét';
   $('cccdBadge').className = 'badge pending';
   $('gplxBadge').textContent = 'Chưa quét';
@@ -618,10 +682,24 @@ const PHOTO_LABELS = { cccd: 'CCCD', gplx: 'GPLX', portrait: 'Học viên' };
 let captureStream = null;
 let captureSlot = null;
 
+// Single source of truth for the guide rectangle — used both to draw the
+// overlay AND to crop the final photo to that exact area, so what you see
+// in the viewfinder is exactly what gets saved.
+const FRAME_GUIDES = {
+  document: { left: 6, right: 6, top: 32, bottom: 32 },
+  portrait: { left: 22, right: 22, top: 14, bottom: 26 }
+};
+
 function openCaptureModal(slot){
   captureSlot = slot;
   $('captureLabel').textContent = 'Chụp ảnh: ' + PHOTO_LABELS[slot];
-  $('captureFrame').className = 'capture-frame ' + (slot === 'portrait' ? 'frame-portrait' : 'frame-document');
+  const g = slot === 'portrait' ? FRAME_GUIDES.portrait : FRAME_GUIDES.document;
+  const frameEl = $('captureFrame');
+  frameEl.className = 'capture-frame ' + (slot === 'portrait' ? 'frame-portrait' : 'frame-document');
+  frameEl.style.left = g.left + '%';
+  frameEl.style.right = g.right + '%';
+  frameEl.style.top = g.top + '%';
+  frameEl.style.bottom = g.bottom + '%';
   $('photoCaptureModal').style.display = 'block';
   $('captureZoomRow').style.display = 'none';
   navigator.mediaDevices.getUserMedia({
@@ -669,15 +747,35 @@ function closeCaptureModal(){
 $('btnCaptureCancel').addEventListener('click', closeCaptureModal);
 $('btnCaptureShot').addEventListener('click', () => {
   const video = $('captureVideo');
+  const g = captureSlot === 'portrait' ? FRAME_GUIDES.portrait : FRAME_GUIDES.document;
+
+  // The video fills the screen via CSS object-fit:cover, which means the
+  // camera's native frame is scaled up and cropped to fill the viewport —
+  // only part of the native frame is actually visible. We replicate that
+  // same "cover" math here so the crop matches what was on screen exactly,
+  // then apply the guide rectangle's percentages on top of that.
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const viewW = video.clientWidth, viewH = video.clientHeight;
+  const coverScale = Math.max(viewW / vw, viewH / vh);
+  const visibleW = viewW / coverScale;
+  const visibleH = viewH / coverScale;
+  const offX = (vw - visibleW) / 2;
+  const offY = (vh - visibleH) / 2;
+
+  const sx = offX + (g.left / 100) * visibleW;
+  const sy = offY + (g.top / 100) * visibleH;
+  const sw = visibleW * (1 - g.left / 100 - g.right / 100);
+  const sh = visibleH * (1 - g.top / 100 - g.bottom / 100);
+
+  const maxDim = 1600;
+  const outScale = Math.min(1, maxDim / Math.max(sw, sh));
   const canvas = document.createElement('canvas');
-  // Cap size to keep the in-memory/ZIP footprint reasonable on phones
-  const scale = Math.min(1, 1600 / video.videoWidth);
-  canvas.width = video.videoWidth * scale;
-  canvas.height = video.videoHeight * scale;
-  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.width = Math.max(1, Math.round(sw * outScale));
+  canvas.height = Math.max(1, Math.round(sh * outScale));
+  canvas.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   draftPhotos[captureSlot] = canvas.toDataURL('image/jpeg', 0.85);
   renderPhotoPreviews();
-  setStatus(`Đã chụp ảnh ${PHOTO_LABELS[captureSlot]}.`, 'ok');
+  setStatus(`Đã chụp ảnh ${PHOTO_LABELS[captureSlot]} (đã cắt đúng khung).`, 'ok');
   closeCaptureModal();
 });
 
@@ -729,6 +827,7 @@ $('btnAdd').addEventListener('click', () => {
     issuingAuthority: $('f_issuingAuthority').value.trim(),
     passDate: $('f_passDate').value.trim(),
     source: lastSource,
+    sale: $('f_sale').value.trim(),
     photos: { ...draftPhotos },
     synced: false
   };
@@ -780,11 +879,11 @@ function escapeHtml(s){
 renderEntries();
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate', 'source', 'phone', 'khoa', 'tuition'];
+const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate', 'source', 'phone', 'khoa', 'tuition', 'sale'];
 // Hard-coded default so the app works out of the box with no setup. The
 // "Cài đặt nâng cao" section (collapsed) can still override this if the Form
 // is ever rebuilt with a different link.
-const DEFAULT_FORM_LINK = '.855821955';
+const DEFAULT_FORM_LINK = 'https://docs.google.com/forms/d/e/1FAIpQLSc_QLkhYws6bWFfh1HufU8VxTtilVaEaIJeavU_LM532_NGlA/viewform?usp=pp_url&entry.721717004=FDFD&entry.220886775=2&entry.1878504099=2&entry.1001410458=2&entry.1237451213=2&entry.1873787372=2&entry.1425124983=22&entry.700911909=2&entry.955486346=2&entry.1281859790=2&entry.204427173=2&entry.1342035105=2';
 let formConfig = null;
 try { formConfig = JSON.parse(localStorage.getItem('cccd_form_config') || 'null'); } catch(e){ formConfig = null; }
 if (!formConfig){
@@ -902,12 +1001,12 @@ $('btnExportPhotos').addEventListener('click', async () => {
 
 // ---------- CSV export & encryption (no network required) ----------
 function entriesToCsv(list){
-  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Ngày hết hạn','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng'];
+  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Ngày hết hạn','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng','Sale'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   const rows = list.map(e => [
     e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate,
     e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.expiryDate, e.issuingAuthority, e.passDate,
-    e.source, e.phone, e.khoa, e.tuition
+    e.source, e.phone, e.khoa, e.tuition, e.sale
   ].map(esc).join(','));
   return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel
 }
@@ -1016,6 +1115,21 @@ $('btnNetTest').addEventListener('click', async () => {
   }
   el.innerHTML = results.join('<br>');
   el.className = 'status';
+});
+
+$('btnClearAll').addEventListener('click', () => {
+  if (!entries.length){
+    $('clearAllStatus').textContent = 'Danh sách đang trống.';
+    $('clearAllStatus').className = 'status';
+    return;
+  }
+  const sure = confirm(`Xoá toàn bộ ${entries.length} mục đã quét? Hành động này KHÔNG thể hoàn tác. Dữ liệu đã gửi lên Google Sheet vẫn còn nguyên, chỉ danh sách trên máy này bị xoá.`);
+  if (!sure) return;
+  entries = [];
+  persistEntries();
+  renderEntries();
+  $('clearAllStatus').textContent = 'Đã xoá toàn bộ danh sách trên máy này.';
+  $('clearAllStatus').className = 'status ok';
 });
 
 $('btnResetSync').addEventListener('click', () => {

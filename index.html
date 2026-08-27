@@ -197,7 +197,6 @@
     <label>Số điện thoại</label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
     <label>Khóa</label><input id="f_khoa" placeholder="VD: K15">
     <label>Số tiền học phí đã đóng</label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
-    <label>Sale</label><input id="f_sale" placeholder="Tên nhân viên sale">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Ảnh đính kèm</h2>
@@ -271,7 +270,7 @@
         <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
       </div>
       <div id="formSetupStatus" class="status"></div>
-      <div class="hint">Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn, Đơn vị cấp, Ngày trúng tuyển, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Sale.</div>
+      <div class="hint">Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn, Đơn vị cấp, Ngày trúng tuyển, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Sale, Ngày hết hạn GPLX (câu bổ sung ở cuối).</div>
 
       <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
       <h2>Cách khác: xuất file (không cần mạng)</h2>
@@ -324,8 +323,8 @@ const $ = id => document.getElementById(id);
 // Anyone who views the page source can see this list. Edit it with your
 // team's real usernames/passwords below:
 const USERS = [
-  { username: 'hong', password: 'maihongcttg' },
-  { username: 'admin', password: 'minad' },
+  { username: 'sale1', password: 'doimatkhaunay1' },
+  { username: 'sale2', password: 'doimatkhaunay2' },
   // { username: 'ten_khac', password: 'mat_khau_khac' },
 ];
 
@@ -489,7 +488,6 @@ function resetDraft(){
    'f_idNumber','f_oldId','f_gender','f_address','f_issueDate',
    'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_expiryDate','f_issuingAuthority','f_passDate']
     .forEach(id => { $(id).value = ''; });
-  $('f_sale').value = localStorage.getItem('cccd_current_sale') || '';
   $('cccdBadge').textContent = 'Chưa quét';
   $('cccdBadge').className = 'badge pending';
   $('gplxBadge').textContent = 'Chưa quét';
@@ -824,10 +822,11 @@ $('btnAdd').addEventListener('click', () => {
     licenseClass: $('f_licenseClass').value.trim(),
     gplxIssueDate: $('f_gplxIssueDate').value.trim(),
     expiryDate: $('f_expiryDate').value.trim(),
+    expiryDateGplxEnd: $('f_expiryDate').value.trim(), // duplicate — new Form question added at the end, same source value
     issuingAuthority: $('f_issuingAuthority').value.trim(),
     passDate: $('f_passDate').value.trim(),
     source: lastSource,
-    sale: $('f_sale').value.trim(),
+    sale: localStorage.getItem('cccd_current_sale') || '',
     photos: { ...draftPhotos },
     synced: false
   };
@@ -879,7 +878,7 @@ function escapeHtml(s){
 renderEntries();
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate', 'source', 'phone', 'khoa', 'tuition', 'sale'];
+const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate', 'source', 'phone', 'khoa', 'tuition', 'sale', 'expiryDateGplxEnd'];
 // Hard-coded default so the app works out of the box with no setup. The
 // "Cài đặt nâng cao" section (collapsed) can still override this if the Form
 // is ever rebuilt with a different link.

@@ -159,9 +159,6 @@
     <h2>Thông tin học viên <span id="srcBadge"></span></h2>
     <label>Họ và tên</label><input id="f_fullName">
     <label>Ngày sinh</label><input id="f_dob" placeholder="dd/mm/yyyy">
-    <label>Số điện thoại</label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
-    <label>Khóa</label><input id="f_khoa" placeholder="VD: K15">
-    <label>Số tiền học phí đã đóng</label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Thông tin CCCD <span id="cccdBadge" class="badge pending">Chưa quét</span></h2>
@@ -179,6 +176,11 @@
     <label>Ngày hết hạn</label><input id="f_expiryDate" placeholder="dd/mm/yyyy">
     <label>Đơn vị cấp</label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
     <label>Ngày trúng tuyển (đạt kết quả sát hạch)</label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
+    <label>Số điện thoại</label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
+    <label>Khóa</label><input id="f_khoa" placeholder="VD: K15">
+    <label>Số tiền học phí đã đóng</label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Ảnh đính kèm</h2>
@@ -207,20 +209,13 @@
     </div>
     <div id="captureLabel" style="position:absolute;top:16px;left:16px;color:#fff;font-weight:700;font-size:.9rem;text-shadow:0 1px 3px rgba(0,0,0,.6);"></div>
     <button id="btnCaptureCancel" style="position:absolute;top:14px;right:14px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:.8rem;">Huỷ</button>
+    <div id="captureZoomRow" style="display:none;position:absolute;bottom:110px;left:10%;right:10%;align-items:center;gap:8px;">
+      <span style="color:#fff;font-size:.75rem;text-shadow:0 1px 3px rgba(0,0,0,.6);">🔍</span>
+      <input type="range" id="captureZoomSlider" min="1" max="5" step="0.1" value="1" style="flex:1;">
+    </div>
     <div style="position:absolute;bottom:28px;left:0;right:0;display:flex;justify-content:center;">
       <button id="btnCaptureShot" style="width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid var(--gold);font-size:1.4rem;"></button>
     </div>
-  </div>
-
-  <div class="card">
-    <h2>Cài đặt Google Form (khuyên dùng)</h2>
-    <label>Dán "Link đã điền sẵn" (pre-filled link) từ Google Form vào đây</label>
-    <textarea id="formPrefillLink" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.111=...&entry.222=..." style="min-height:70px;"></textarea>
-    <div class="row">
-      <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
-    </div>
-    <div id="formSetupStatus" class="status"></div>
-    <div class="hint">Chỉ cần dán 1 lần. Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn, Đơn vị cấp, Ngày trúng tuyển.</div>
   </div>
 
   <div class="card">
@@ -242,53 +237,58 @@
     </div>
     <div id="photoExportStatus" class="status"></div>
     <div class="hint">Ảnh CHỈ lưu tạm trong phiên làm việc này (không lưu khi tải lại trang) — hãy tải file ZIP trước khi đóng trình duyệt.</div>
+  </div>
 
-    <details style="margin-top:14px;">
-      <summary>Cách khác: xuất file (không cần mạng)</summary>
-      <div class="row" style="margin-top:8px;">
+  <details class="card">
+    <summary style="cursor:pointer;">⚙️ Cài đặt nâng cao / dự phòng (thường không cần mở)</summary>
+    <div style="margin-top:12px;">
+      <h2>Link Google Form</h2>
+      <label>Dán "Link đã điền sẵn" (pre-filled link) từ Google Form vào đây — chỉ cần khi muốn đổi Form</label>
+      <textarea id="formPrefillLink" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.111=...&entry.222=..." style="min-height:70px;"></textarea>
+      <div class="row">
+        <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
+      </div>
+      <div id="formSetupStatus" class="status"></div>
+      <div class="hint">Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn, Đơn vị cấp, Ngày trúng tuyển, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng.</div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
+      <h2>Cách khác: xuất file (không cần mạng)</h2>
+      <div class="row">
         <button class="primary" id="btnExportEnc">Tải file mã hóa (bảo mật)</button>
       </div>
       <div class="row">
         <button class="ghost" id="btnExportCsv">Tải file CSV thường</button>
       </div>
       <div id="exportStatus" class="status"></div>
-    </details>
 
-    <details style="margin-top:8px;">
-      <summary>Nâng cao: Đồng bộ qua Apps Script (không khuyên dùng)</summary>
-      <div class="row" style="margin-top:8px;">
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
+      <h2>Giải mã file đã tải</h2>
+      <label>Dán nội dung file mã hóa vào đây</label>
+      <textarea id="decInput" style="min-height:80px;"></textarea>
+      <label>Mật khẩu</label>
+      <input id="decPassword" type="password">
+      <div class="row">
+        <button class="primary" id="btnDecrypt">Giải mã và tải file CSV</button>
+      </div>
+      <div id="decStatus" class="status"></div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
+      <h2>Đồng bộ qua Apps Script (không khuyên dùng)</h2>
+      <div class="row">
         <button class="primary" id="btnSync">Đồng bộ tất cả lên Google Sheet</button>
         <button class="ghost" id="btnResetSync">Đánh dấu lại tất cả là chưa đồng bộ</button>
       </div>
       <div id="syncStatus" class="status"></div>
-    </details>
-  </div>
-
-  <div class="card">
-    <h2>Giải mã file đã tải</h2>
-    <label>Dán nội dung file mã hóa vào đây</label>
-    <textarea id="decInput" style="min-height:80px;"></textarea>
-    <label>Mật khẩu</label>
-    <input id="decPassword" type="password">
-    <div class="row">
-      <button class="primary" id="btnDecrypt">Giải mã và tải file CSV</button>
+      <label style="margin-top:10px;">URL Web App (Apps Script)</label>
+      <input id="scriptUrl" placeholder="https://script.google.com/macros/s/XXXX/exec">
+      <label>URL đầy đủ của lần đồng bộ gần nhất (để kiểm tra thủ công)</label>
+      <textarea id="debugUrl" readonly style="min-height:70px;font-size:.7rem;"></textarea>
+      <div class="row">
+        <button class="ghost" id="btnNetTest">Kiểm tra kết nối mạng (không liên quan Google)</button>
+      </div>
+      <div id="netTestStatus" class="status"></div>
     </div>
-    <div id="decStatus" class="status"></div>
-    <div class="hint">Nên giải mã trên máy tính riêng tư trước khi import vào Google Sheet, không nên giải mã trên máy dùng chung.</div>
-  </div>
-  <div class="card">
-    <h2>Cài đặt Google Sheet</h2>
-    <label>URL Web App (Apps Script)</label>
-    <input id="scriptUrl" placeholder="https://script.google.com/macros/s/XXXX/exec">
-    <div class="hint">Dán URL sau khi triển khai (deploy) Apps Script theo hướng dẫn đi kèm. URL được lưu trên máy này để dùng lại lần sau.</div>
-    <label>URL đầy đủ của lần đồng bộ gần nhất (để kiểm tra thủ công)</label>
-    <textarea id="debugUrl" readonly style="min-height:70px;font-size:.7rem;"></textarea>
-    <div class="hint">Sao chép dòng trên và dán vào trình duyệt để kiểm tra xem nó có hoạt động giống hệt khi bạn tự gõ URL không.</div>
-    <div class="row">
-      <button class="ghost" id="btnNetTest">Kiểm tra kết nối mạng (không liên quan Google)</button>
-    </div>
-    <div id="netTestStatus" class="status"></div>
-  </div>
+  </details>
 
   <footer>Chạy hoàn toàn trên trình duyệt của bạn — không có máy chủ trung gian nào lưu dữ liệu.</footer>
 </main>
@@ -623,16 +623,44 @@ function openCaptureModal(slot){
   $('captureLabel').textContent = 'Chụp ảnh: ' + PHOTO_LABELS[slot];
   $('captureFrame').className = 'capture-frame ' + (slot === 'portrait' ? 'frame-portrait' : 'frame-document');
   $('photoCaptureModal').style.display = 'block';
+  $('captureZoomRow').style.display = 'none';
   navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } }
+    video: {
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 1920 },
+      height: { ideal: 1440 },
+      // Not all browsers support these as ideal constraints, but Chrome on
+      // Android does — this is the fix for photos that never focus properly.
+      focusMode: { ideal: 'continuous' }
+    }
   }).then(stream => {
     captureStream = stream;
     $('captureVideo').srcObject = stream;
+    const track = stream.getVideoTracks()[0];
+    try{
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      const advanced = [];
+      if (caps.focusMode && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+      if (advanced.length) track.applyConstraints({ advanced });
+      if (caps.zoom){
+        $('captureZoomRow').style.display = 'flex';
+        $('captureZoomSlider').min = caps.zoom.min;
+        $('captureZoomSlider').max = caps.zoom.max;
+        $('captureZoomSlider').step = caps.zoom.step || 0.1;
+        $('captureZoomSlider').value = caps.zoom.min;
+      }
+    }catch(e){ /* capabilities API not supported on this device — continues with default focus */ }
   }).catch(err => {
     setStatus('Không mở được camera: ' + err.message, 'err');
     closeCaptureModal();
   });
 }
+$('captureZoomSlider').addEventListener('input', () => {
+  if (captureStream){
+    const track = captureStream.getVideoTracks()[0];
+    track.applyConstraints({ advanced: [{ zoom: parseFloat($('captureZoomSlider').value) }] }).catch(()=>{});
+  }
+});
 function closeCaptureModal(){
   if (captureStream) captureStream.getTracks().forEach(t => t.stop());
   captureStream = null;
@@ -643,11 +671,11 @@ $('btnCaptureShot').addEventListener('click', () => {
   const video = $('captureVideo');
   const canvas = document.createElement('canvas');
   // Cap size to keep the in-memory/ZIP footprint reasonable on phones
-  const scale = Math.min(1, 1280 / video.videoWidth);
+  const scale = Math.min(1, 1600 / video.videoWidth);
   canvas.width = video.videoWidth * scale;
   canvas.height = video.videoHeight * scale;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-  draftPhotos[captureSlot] = canvas.toDataURL('image/jpeg', 0.82);
+  draftPhotos[captureSlot] = canvas.toDataURL('image/jpeg', 0.85);
   renderPhotoPreviews();
   setStatus(`Đã chụp ảnh ${PHOTO_LABELS[captureSlot]}.`, 'ok');
   closeCaptureModal();
@@ -752,9 +780,16 @@ function escapeHtml(s){
 renderEntries();
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'source', 'phone', 'khoa', 'tuition', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate'];
+const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate', 'source', 'phone', 'khoa', 'tuition'];
+// Hard-coded default so the app works out of the box with no setup. The
+// "Cài đặt nâng cao" section (collapsed) can still override this if the Form
+// is ever rebuilt with a different link.
+const DEFAULT_FORM_LINK = 'https://docs.google.com/forms/d/e/1FAIpQLSeqfrniWQRVoijPj82dMiAibI8cK-kNHRwUFug2OkUzFcR-rA/viewform?usp=pp_url&entry.1004784984=88&entry.544347681=88&entry.186372172=88&entry.1336229072=88&entry.414860771=88&entry.281975175=88&entry.2031847474=88&entry.611847855=88&entry.1770029677=88&entry.12092909=88&entry.326079809=88&entry.1674463875=88&entry.40724211=88&entry.1744135168=88&entry.1648364629=88&entry.1378062676=88&entry.855821955=88';
 let formConfig = null;
 try { formConfig = JSON.parse(localStorage.getItem('cccd_form_config') || 'null'); } catch(e){ formConfig = null; }
+if (!formConfig){
+  try { formConfig = parseFormConfig(DEFAULT_FORM_LINK); } catch(e){ formConfig = null; }
+}
 if (formConfig) $('formPrefillLink').value = formConfig.rawLink || '';
 
 function parseFormConfig(prefillLink){
@@ -867,11 +902,12 @@ $('btnExportPhotos').addEventListener('click', async () => {
 
 // ---------- CSV export & encryption (no network required) ----------
 function entriesToCsv(list){
-  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Nguồn','Số điện thoại','Khóa','Học phí đã đóng','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Ngày hết hạn','Đơn vị cấp','Ngày trúng tuyển'];
+  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Ngày hết hạn','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   const rows = list.map(e => [
-    e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.source, e.phone, e.khoa, e.tuition,
-    e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.expiryDate, e.issuingAuthority, e.passDate
+    e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate,
+    e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.expiryDate, e.issuingAuthority, e.passDate,
+    e.source, e.phone, e.khoa, e.tuition
   ].map(esc).join(','));
   return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel
 }

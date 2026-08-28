@@ -29,6 +29,7 @@
     color:#fff;padding:18px 18px 22px;
     border-bottom:3px solid var(--gold);
   }
+  header .inner{max-width:520px;margin:0 auto;}
   header h1{margin:0;font-size:1.15rem;font-weight:700;letter-spacing:.2px;}
   header p{margin:4px 0 0;font-size:.8rem;opacity:.85;}
   main{max-width:520px;margin:0 auto;padding:14px;}
@@ -42,7 +43,13 @@
   }
   /* Scanner viewfinder */
   #reader-wrap{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3;max-height:42vh;}
-  #reader{width:100%;height:100%;}
+  /* Fallback for iOS Safari < 15, which doesn't support the aspect-ratio
+     property — without this, the box collapses to 0 height and the camera
+     has nowhere to render, even though it's technically running. */
+  @supports not (aspect-ratio: 4/3){
+    #reader-wrap{ height:0; padding-bottom:75%; max-height:none; }
+  }
+  #reader{width:100%;height:100%;position:absolute;inset:0;}
   #reader video{object-fit:cover;width:100%!important;height:100%!important;}
   .viewfinder-frame{
     position:absolute;inset:12%;border:2px solid rgba(200,150,30,.85);border-radius:10px;
@@ -124,11 +131,13 @@
 <body>
 
 <header>
+  <div class="inner">
   <h1>Quét CCCD/GPLX → Google Sheet</h1>
   <p>Quét QR trên CCCD hoặc GPLX, chụp ảnh 2 mặt giấy tờ</p>
   <div style="margin-top:6px;font-size:.72rem;display:flex;justify-content:space-between;align-items:center;opacity:.9;gap:8px;">
     <span>Đang đăng nhập: <strong id="currentSaleName">—</strong></span>
     <button id="btnLogout" style="flex:none;width:auto;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:.68rem;">Đăng xuất</button>
+  </div>
   </div>
 </header>
 
@@ -189,8 +198,8 @@
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Thông tin GPLX <span id="gplxBadge" class="badge pending">Chưa quét</span></h2>
-    <label>Số GPLX</label><input id="f_gplxNumber">
-    <label>Hạng bằng lái</label><input id="f_licenseClass" placeholder="VD: A1, B2...">
+    <label>Số GPLX</label><input id="f_gplxNumber" placeholder="Nếu có 2 bằng, quét lần 2 sẽ tự nối bằng dấu |">
+    <label>Hạng bằng lái</label><input id="f_licenseClass" placeholder="VD: A1, B2... (2 bằng sẽ nối bằng dấu |)">
     <label>Ngày cấp GPLX</label><input id="f_gplxIssueDate" placeholder="dd/mm/yyyy">
     <label>Ngày hết hạn GPLX</label><input id="f_gplxExpiryDate" placeholder="dd/mm/yyyy">
     <label>Đơn vị cấp <span class="req">*</span></label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
@@ -207,7 +216,13 @@
       <button class="ghost photobtn" data-doc="cccd" id="btnPhotoCccd">📷 Ảnh CCCD — Chụp mặt trước</button>
     </div>
     <div class="row">
-      <button class="ghost photobtn" data-doc="gplx" id="btnPhotoGplx">📷 Ảnh GPLX — Chụp mặt trước</button>
+      <button class="ghost photobtn" data-doc="gplx1" id="btnPhotoGplx1">📷 Ảnh GPLX 1 — Chụp mặt trước</button>
+    </div>
+    <div class="row">
+      <button class="ghost photobtn" data-doc="gplx2" id="btnPhotoGplx2">📷 Ảnh GPLX 2 (nếu có) — Chụp mặt trước</button>
+    </div>
+    <div class="row">
+      <button class="ghost photobtn" data-doc="gplx3" id="btnPhotoGplx3">📷 Ảnh GPLX 3 (nếu có) — Chụp mặt trước</button>
     </div>
     <div class="row" id="photoPreviews" style="flex-wrap:wrap;"></div>
 
@@ -475,6 +490,18 @@ function resetDraft(){
 // Merges a scan result into the shared draft instead of overwriting it —
 // this lets you scan CCCD, then switch document type and scan GPLX for the
 // SAME person, and end up with one combined record instead of two rows.
+// For GPLX fields: if the person has a second license, the new value is
+// appended with "|" instead of replacing the first one (e.g. "A1|C1").
+function appendOrSet(fieldId, newValue){
+  if (!newValue) return;
+  const el = $(fieldId);
+  const current = el.value.trim();
+  if (!current){ el.value = newValue; return; }
+  const parts = current.split('|').map(s => s.trim());
+  if (parts.includes(newValue)) return; // already recorded, avoid duplicate
+  el.value = current + '|' + newValue;
+}
+
 function showFields(data, source, docType){
   lastSource = source;
   $('fieldsCard').style.display = 'block';
@@ -487,10 +514,10 @@ function showFields(data, source, docType){
   if (!$('f_dob').value.trim() && data.dob) $('f_dob').value = data.dob;
 
   if (docType === 'gplx'){
-    $('f_gplxNumber').value = data.idNumber || '';
-    $('f_licenseClass').value = data.licenseClass || '';
-    $('f_gplxIssueDate').value = data.issueDate || '';
-    $('f_gplxExpiryDate').value = data.expiryDate || '';
+    appendOrSet('f_gplxNumber', data.idNumber);
+    appendOrSet('f_licenseClass', data.licenseClass);
+    appendOrSet('f_gplxIssueDate', data.issueDate);
+    appendOrSet('f_gplxExpiryDate', data.expiryDate);
     // Đơn vị cấp KHÔNG tự điền từ QR — luôn để người dùng tự nhập tay,
     // nên không ghi đè giá trị đã có ở đây.
     $('gplxBadge').textContent = 'Đã quét';
@@ -516,59 +543,76 @@ function setStatus(msg, kind){
 
 // ---------- QR scanning ----------
 $('btnStart').addEventListener('click', async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStatus('Trình duyệt này không hỗ trợ camera (getUserMedia không khả dụng) — kiểm tra bạn đang mở đúng bằng Safari (không phải trình duyệt thu nhỏ trong app khác), và trang đang chạy trên HTTPS.', 'err');
+    return;
+  }
   $('reader-wrap').classList.remove('idle');
   $('btnStart').disabled = true;
   $('btnStop').disabled = false;
   setStatus('Đang mở camera…');
   html5QrCode = new Html5Qrcode('reader', { verbose: false });
-  try{
-    await html5QrCode.start(
-      { facingMode: { ideal: 'environment' } },
-      {
-        fps: 12,
-        qrbox: (viewfinderWidth, viewfinderHeight) => {
-          const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
-          return { width: size, height: size };
-        },
-        aspectRatio: 1.0,
-        videoConstraints: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-      },
-      (decodedText) => {
-        setStatus('Đã đọc được mã QR.', 'ok');
-        const dt = $('docType').value;
-        const data = dt === 'gplx' ? parseGplxQr(decodedText) : parseCccdQr(decodedText);
-        showFields(data, 'qr', dt);
-        stopScanner();
-      },
-      () => { /* per-frame scan failure, ignore */ }
-    );
-    setStatus('Đang quét… giữ thẻ cách camera 10–15cm, đủ sáng, và giữ yên vài giây để nét.');
-
-    // try to enable continuous autofocus and expose a zoom slider if the device supports it
-    try{
-      await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] });
-    }catch(e){ /* not supported on this device, ignore */ }
-    try{
-      const caps = html5QrCode.getRunningTrackCapabilities();
-      if (caps && caps.zoom){
-        $('zoomRow').style.display = 'flex';
-        $('zoomSlider').min = caps.zoom.min;
-        $('zoomSlider').max = caps.zoom.max;
-        $('zoomSlider').step = caps.zoom.step || 0.1;
-        $('zoomSlider').value = caps.zoom.min;
-      } else {
-        $('zoomRow').style.display = 'none';
-      }
-    }catch(e){ $('zoomRow').style.display = 'none'; }
-  }catch(err){
-    setStatus('Không mở được camera: ' + err.message + ' (cần chạy trên HTTPS và cấp quyền camera).', 'err');
-    resetScanButtons();
+  const qrSuccess = (decodedText) => {
+    setStatus('Đã đọc được mã QR.', 'ok');
+    const dt = $('docType').value;
+    const data = dt === 'gplx' ? parseGplxQr(decodedText) : parseCccdQr(decodedText);
+    showFields(data, 'qr', dt);
+    stopScanner();
+  };
+  const scanConfig = {
+    fps: 12,
+    qrbox: (viewfinderWidth, viewfinderHeight) => {
+      const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
+      return { width: size, height: size };
+    },
+    aspectRatio: 1.0,
+    videoConstraints: {
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    }
+  };
+  // BarcodeDetector is Chrome/Edge-only — Safari doesn't have it. Only ask
+  // the library to use it when it's actually available, to stay safe.
+  if (typeof window.BarcodeDetector !== 'undefined'){
+    scanConfig.experimentalFeatures = { useBarCodeDetectorIfSupported: true };
   }
+  try{
+    await html5QrCode.start({ facingMode: { ideal: 'environment' } }, scanConfig, qrSuccess, () => {});
+    setStatus('Đang quét… giữ thẻ cách camera 10–15cm, đủ sáng, và giữ yên vài giây để nét.');
+  }catch(err1){
+    // Fallback for Safari/iOS: facingMode alone sometimes gets rejected or
+    // picks the wrong camera. Enumerate cameras explicitly and retry with a
+    // concrete device instead — the standard workaround for this library.
+    try{
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras || !cameras.length) throw err1;
+      const backCam = cameras.find(c => /back|rear|environment/i.test(c.label)) || cameras[cameras.length - 1];
+      await html5QrCode.start(backCam.id, scanConfig, qrSuccess, () => {});
+      setStatus('Đang quét… giữ thẻ cách camera 10–15cm, đủ sáng, và giữ yên vài giây để nét.');
+    }catch(err2){
+      setStatus('Không mở được camera: ' + (err2.message || err1.message) + ' — kiểm tra Cài đặt > Safari > Camera đã cho phép trang này chưa.', 'err');
+      resetScanButtons();
+      return;
+    }
+  }
+
+  // try to enable continuous autofocus and expose a zoom slider if the device supports it
+  try{
+    await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] });
+  }catch(e){ /* not supported on this device, ignore */ }
+  try{
+    const caps = html5QrCode.getRunningTrackCapabilities();
+    if (caps && caps.zoom){
+      $('zoomRow').style.display = 'flex';
+      $('zoomSlider').min = caps.zoom.min;
+      $('zoomSlider').max = caps.zoom.max;
+      $('zoomSlider').step = caps.zoom.step || 0.1;
+      $('zoomSlider').value = caps.zoom.min;
+    } else {
+      $('zoomRow').style.display = 'none';
+    }
+  }catch(e){ $('zoomRow').style.display = 'none'; }
 });
 
 $('zoomSlider').addEventListener('input', () => {
@@ -595,7 +639,9 @@ function resetScanButtons(){
 // ---------- photo capture (live preview + framing guide) ----------
 const PHOTO_LABELS = {
   cccd_front: 'CCCD mặt trước', cccd_back: 'CCCD mặt sau',
-  gplx_front: 'GPLX mặt trước', gplx_back: 'GPLX mặt sau'
+  gplx1_front: 'GPLX 1 mặt trước', gplx1_back: 'GPLX 1 mặt sau',
+  gplx2_front: 'GPLX 2 mặt trước', gplx2_back: 'GPLX 2 mặt sau',
+  gplx3_front: 'GPLX 3 mặt trước', gplx3_back: 'GPLX 3 mặt sau'
 };
 let captureStream = null;
 let captureSlot = null;
@@ -635,14 +681,15 @@ function openCaptureModal(doc){
   frameEl.style.right = 'auto';
   frameEl.style.bottom = 'auto';
   $('photoCaptureModal').style.display = 'block';
+  // Safari/WebKit can reject the ENTIRE getUserMedia call if the constraint
+  // object includes properties it doesn't recognize (unlike Chrome, which
+  // just ignores unknown ones) — so focusMode is applied AFTER the stream is
+  // obtained, never in the initial request, to stay compatible with iOS.
   navigator.mediaDevices.getUserMedia({
     video: {
       facingMode: { ideal: 'environment' },
       width: { ideal: 1920 },
-      height: { ideal: 1440 },
-      // Not all browsers support these as ideal constraints, but Chrome on
-      // Android does — this is the fix for photos that never focus properly.
-      focusMode: { ideal: 'continuous' }
+      height: { ideal: 1440 }
     }
   }).then(stream => {
     captureStream = stream;
@@ -748,7 +795,9 @@ function updateDocButtonLabel(doc, btn, baseLabel){
 }
 function updatePhotoButtons(){
   updateDocButtonLabel('cccd', $('btnPhotoCccd'), 'CCCD');
-  updateDocButtonLabel('gplx', $('btnPhotoGplx'), 'GPLX');
+  updateDocButtonLabel('gplx1', $('btnPhotoGplx1'), 'GPLX 1');
+  updateDocButtonLabel('gplx2', $('btnPhotoGplx2'), 'GPLX 2 (nếu có)');
+  updateDocButtonLabel('gplx3', $('btnPhotoGplx3'), 'GPLX 3 (nếu có)');
 }
 function renderPhotoPreviews(){
   const wrap = $('photoPreviews');
@@ -769,7 +818,9 @@ function renderPhotoPreviews(){
   updatePhotoButtons();
 }
 $('btnPhotoCccd').addEventListener('click', () => openCaptureModal('cccd'));
-$('btnPhotoGplx').addEventListener('click', () => openCaptureModal('gplx'));
+$('btnPhotoGplx1').addEventListener('click', () => openCaptureModal('gplx1'));
+$('btnPhotoGplx2').addEventListener('click', () => openCaptureModal('gplx2'));
+$('btnPhotoGplx3').addEventListener('click', () => openCaptureModal('gplx3'));
 
 // ---------- entry list ----------
 $('btnAdd').addEventListener('click', () => {
@@ -960,7 +1011,10 @@ $('btnExportPhotos').addEventListener('click', async () => {
   el.className = 'status';
   const zip = new JSZip();
   withPhotos.forEach((e, i) => {
-    const safeName = (e.fullName || e.idNumber || ('hoc_vien_' + i)).replace(/[^\p{L}\p{N}]+/gu, '_');
+    const classPart = (e.licenseClass || '').replace(/\|/g, '-'); // "A1|C1" → "A1-C1", zip-folder-safe
+    const namePart = e.fullName || e.idNumber || ('hoc_vien_' + i);
+    const label = classPart ? `${classPart}-${namePart}` : namePart;
+    const safeName = label.replace(/[^\p{L}\p{N}\-]+/gu, '_');
     const folder = zip.folder(`${i+1}_${safeName}`);
     Object.entries(e.photos).forEach(([slot, dataUrl]) => {
       const base64 = dataUrl.split(',')[1];
@@ -970,7 +1024,15 @@ $('btnExportPhotos').addEventListener('click', async () => {
   const blob = await zip.generateAsync({ type: 'blob' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'anh-hoc-vien-' + Date.now() + '.zip';
+  if (withPhotos.length === 1){
+    const e = withPhotos[0];
+    const classPart = (e.licenseClass || '').replace(/\|/g, '-');
+    const namePart = e.fullName || e.idNumber || 'hoc_vien';
+    const zipLabel = (classPart ? `${classPart}-${namePart}` : namePart).replace(/[^\p{L}\p{N}\-]+/gu, '_');
+    a.download = zipLabel + '.zip';
+  } else {
+    a.download = 'anh-hoc-vien-' + Date.now() + '.zip';
+  }
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

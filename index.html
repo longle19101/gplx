@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Quét CCCD/GPLX → Google Sheet</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
@@ -41,7 +42,7 @@
     color:var(--brand-2);margin:0 0 10px;font-weight:700;
   }
   /* Scanner viewfinder */
-  #reader-wrap{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3;max-height:42vh;}
+  #reader-wrap{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:3/4;max-height:70vh;}
   #reader{width:100%;height:100%;}
   #reader video{object-fit:cover;width:100%!important;height:100%!important;}
   .viewfinder-frame{
@@ -80,7 +81,6 @@
   .status.ok{color:var(--green);}
 
   label{display:block;font-size:.72rem;color:#5b6b75;margin:8px 0 3px;text-transform:uppercase;letter-spacing:.05em;}
-  .req{color:var(--red);font-weight:700;}
   input,textarea{
     width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
     font-family:var(--mono);font-size:.88rem;background:#fbfcfd;color:var(--ink);
@@ -111,7 +111,7 @@
   .photo-thumb .lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(11,61,92,.85);color:#fff;font-size:.55rem;text-align:center;padding:1px 0;}
   .photo-thumb .rm{position:absolute;top:1px;right:1px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:.6rem;line-height:1;cursor:pointer;}
   .capture-frame{position:absolute;pointer-events:none;border:2px solid rgba(200,150,30,.9);border-radius:12px;}
-  .capture-frame.frame-document{}
+  .capture-frame.frame-portrait{border-radius:50%/40%;}
   .capture-frame .corner{position:absolute;width:22px;height:22px;border:3px solid var(--gold);}
   .capture-frame .c-tl{top:-3px;left:-3px;border-right:none;border-bottom:none;}
   .capture-frame .c-tr{top:-3px;right:-3px;border-left:none;border-bottom:none;}
@@ -125,10 +125,10 @@
 
 <header>
   <h1>Quét CCCD/GPLX → Google Sheet</h1>
-  <p>Quét QR trên CCCD hoặc GPLX, chụp ảnh 2 mặt giấy tờ</p>
-  <div style="margin-top:6px;font-size:.72rem;display:flex;justify-content:space-between;align-items:center;opacity:.9;gap:8px;">
+  <p>Quét QR trên CCCD hoặc GPLX, chụp ảnh giấy tờ & học viên, nhận diện chữ (OCR)</p>
+  <div style="margin-top:8px;font-size:.78rem;display:flex;justify-content:space-between;align-items:center;opacity:.9;">
     <span>Đang đăng nhập: <strong id="currentSaleName">—</strong></span>
-    <button id="btnLogout" style="flex:none;width:auto;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:.68rem;">Đăng xuất</button>
+    <button id="btnLogout" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:.72rem;">Đăng xuất</button>
   </div>
 </header>
 
@@ -170,6 +170,9 @@
       <label style="margin:0;flex:none;width:44px;">Zoom</label>
       <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" style="flex:1;">
     </div>
+    <div class="row">
+      <button class="gold" id="btnOcr">Không có QR → Chụp & nhận diện OCR</button>
+    </div>
     <div id="status" class="status">Chọn loại giấy tờ, nhấn "Bắt đầu quét QR" và hướng camera vào mã QR.</div>
   </div>
 
@@ -185,7 +188,7 @@
     <label>Giới tính</label><input id="f_gender">
     <label>Địa chỉ</label><textarea id="f_address"></textarea>
     <label>Ngày cấp CCCD</label><input id="f_issueDate" placeholder="dd/mm/yyyy">
-    <label>Ngày hết hạn CCCD <span class="req">*</span></label><input id="f_expiryDate" placeholder="dd/mm/yyyy — không có trong QR, cần nhập tay">
+    <label>Ngày hết hạn CCCD</label><input id="f_expiryDate" placeholder="dd/mm/yyyy — không có trong QR, cần nhập tay">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Thông tin GPLX <span id="gplxBadge" class="badge pending">Chưa quét</span></h2>
@@ -193,13 +196,13 @@
     <label>Hạng bằng lái</label><input id="f_licenseClass" placeholder="VD: A1, B2...">
     <label>Ngày cấp GPLX</label><input id="f_gplxIssueDate" placeholder="dd/mm/yyyy">
     <label>Ngày hết hạn GPLX</label><input id="f_gplxExpiryDate" placeholder="dd/mm/yyyy">
-    <label>Đơn vị cấp <span class="req">*</span></label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
-    <label>Ngày trúng tuyển (đạt kết quả sát hạch) <span class="req">*</span></label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
+    <label>Đơn vị cấp</label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
+    <label>Ngày trúng tuyển (đạt kết quả sát hạch)</label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
-    <label>Số điện thoại <span class="req">*</span></label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
-    <label>Khóa <span class="req">*</span></label><input id="f_khoa" placeholder="VD: K15">
-    <label>Số tiền học phí đã đóng <span class="req">*</span></label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
+    <label>Số điện thoại</label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
+    <label>Khóa</label><input id="f_khoa" placeholder="VD: K15">
+    <label>Số tiền học phí đã đóng</label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Ảnh đính kèm</h2>
@@ -208,6 +211,9 @@
     </div>
     <div class="row">
       <button class="ghost photobtn" data-doc="gplx" id="btnPhotoGplx">📷 Ảnh GPLX — Chụp mặt trước</button>
+    </div>
+    <div class="row">
+      <button class="ghost photobtn" data-slot="portrait" id="btnPhotoPortrait">📷 Ảnh học viên</button>
     </div>
     <div class="row" id="photoPreviews" style="flex-wrap:wrap;"></div>
 
@@ -325,7 +331,7 @@ const $ = id => document.getElementById(id);
 // Anyone who views the page source can see this list. Edit it with your
 // team's real usernames/passwords below:
 const USERS = [
-  { username: 'sale1', password: 'doimatkhaunay1' },
+  { username: 'admin', password: 'minad' },
   { username: 'sale2', password: 'doimatkhaunay2' },
   // { username: 'ten_khac', password: 'mat_khau_khac' },
 ];
@@ -438,7 +444,7 @@ function parseGplxQr(raw){
       issueDate: fmtDate(parts[4]) || parts[4] || '',
       licenseClass: parts[3] || '',
       expiryDate: fmtDate(parts[5]) || parts[5] || '',
-      issuingAuthority: '', // luôn để trống — nhập tay, không lấy từ QR
+      issuingAuthority: parts[6] || '',
       raw
     };
   }
@@ -451,11 +457,38 @@ function parseGplxQr(raw){
       idNumber: parts[0] || '', oldId: '', fullName: parts[1] || '',
       dob: fmtDate(parts[2]) || parts[2] || '', gender: '', address: '',
       issueDate: fmtDate(parts[5]) || parts[5] || '',
-      licenseClass: parts[3] || '', expiryDate: '', issuingAuthority: '',
+      licenseClass: parts[3] || '', expiryDate: '', issuingAuthority: parts[4] || '',
       raw
     };
   }
   return { idNumber: '', oldId: '', fullName: '', dob: '', gender: '', address: '', issueDate: '', licenseClass: '', expiryDate: '', issuingAuthority: '', raw };
+}
+
+// best-effort field extraction from loose OCR text
+function parseOcrText(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const idMatch = text.match(/\b\d{12}\b/) || text.match(/\b\d{9}\b/);
+  const dobMatches = [...text.matchAll(/\b(\d{2}[\/\.\-]\d{2}[\/\.\-]\d{4})\b/g)].map(m => m[1]);
+
+  // name: an all-caps Vietnamese line, 2+ words, not a label, not mostly digits
+  const labelWords = /(SOCIALIST|VIETNAM|CONG HOA|CỘNG HÒA|CĂN CƯỚC|CCCD|FULL NAME|HỌ VÀ TÊN|SEX|GENDER|NATIONALITY|QUỐC TỊCH|PLACE OF|NƠI|DATE OF|NGÀY)/i;
+  const nameLine = lines.find(l =>
+    /^[A-ZÀ-Ỹ][A-ZÀ-Ỹ\s]{5,}$/.test(l) &&
+    l.split(/\s+/).length >= 2 &&
+    !/\d/.test(l) &&
+    !labelWords.test(l)
+  );
+
+  return {
+    idNumber: idMatch ? idMatch[0] : '',
+    oldId: '',
+    fullName: nameLine || '',
+    dob: dobMatches[0] || '',
+    gender: /\bNữ\b/i.test(text) ? 'Nữ' : (/\bNam\b/i.test(text) ? 'Nam' : ''),
+    address: '',
+    issueDate: dobMatches[1] || '',
+    raw: text
+  };
 }
 
 function resetDraft(){
@@ -491,8 +524,7 @@ function showFields(data, source, docType){
     $('f_licenseClass').value = data.licenseClass || '';
     $('f_gplxIssueDate').value = data.issueDate || '';
     $('f_gplxExpiryDate').value = data.expiryDate || '';
-    // Đơn vị cấp KHÔNG tự điền từ QR — luôn để người dùng tự nhập tay,
-    // nên không ghi đè giá trị đã có ở đây.
+    $('f_issuingAuthority').value = data.issuingAuthority || '';
     $('gplxBadge').textContent = 'Đã quét';
     $('gplxBadge').className = 'badge qr';
   } else {
@@ -592,10 +624,70 @@ function resetScanButtons(){
   $('zoomRow').style.display = 'none';
 }
 
+// ---------- OCR fallback ----------
+// Simple grayscale + contrast boost — noticeably improves Tesseract accuracy on glossy ID card photos
+function preprocessForOcr(canvas){
+  const ctx = canvas.getContext('2d');
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4){
+    const gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    const v = gray < 150 ? Math.max(0, gray - 25) : Math.min(255, gray + 35);
+    d[i] = d[i+1] = d[i+2] = v;
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+// Mirror of tessdata.projectnaptha.com — used as a fallback path in case the
+// default host is slow/blocked, which is the most common cause of OCR
+// "working" but only reading digits (the vie.traineddata file fails to load,
+// so Tesseract silently falls back to a mode that only catches plain numbers).
+const OCR_LANG_PATH = 'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0';
+
+$('btnOcr').addEventListener('click', async () => {
+  let stream;
+  try{
+    setStatus('Đang mở camera để chụp ảnh OCR…');
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    await video.play();
+    await new Promise(r => setTimeout(r, 900)); // let autofocus settle
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    stream.getTracks().forEach(t => t.stop());
+    preprocessForOcr(canvas);
+
+    const { data: { text } } = await Tesseract.recognize(canvas, 'vie+eng', {
+      langPath: OCR_LANG_PATH,
+      logger: m => {
+        if (m.status === 'loading language traineddata'){
+          setStatus(`Đang tải dữ liệu ngôn ngữ tiếng Việt… ${Math.round((m.progress||0)*100)}%`);
+        } else if (m.status === 'recognizing text'){
+          setStatus(`Đang nhận diện văn bản… ${Math.round((m.progress||0)*100)}%`);
+        } else {
+          setStatus('Đang xử lý OCR: ' + m.status);
+        }
+      }
+    });
+    setStatus('Nhận diện xong. Vui lòng kiểm tra và sửa lại thông tin — OCR không chính xác 100%.', 'ok');
+    showFields(parseOcrText(text), 'ocr', $('docType').value);
+  }catch(err){
+    setStatus('Lỗi OCR: ' + err.message + ' — thử lại, hoặc nhập tay nếu vẫn lỗi.', 'err');
+    if (stream) stream.getTracks().forEach(t => t.stop());
+  }
+});
+
 // ---------- photo capture (live preview + framing guide) ----------
 const PHOTO_LABELS = {
   cccd_front: 'CCCD mặt trước', cccd_back: 'CCCD mặt sau',
-  gplx_front: 'GPLX mặt trước', gplx_back: 'GPLX mặt sau'
+  gplx_front: 'GPLX mặt trước', gplx_back: 'GPLX mặt sau',
+  portrait: 'Học viên'
 };
 let captureStream = null;
 let captureSlot = null;
@@ -606,16 +698,23 @@ let captureSlot = null;
 // identical rectangle, so what you frame is exactly what gets saved.
 function computeFrameRect(slot){
   const vpW = window.innerWidth, vpH = window.innerHeight;
+  if (slot === 'portrait'){
+    const width = vpW * 0.56;
+    const height = vpH * 0.60;
+    return { left: (vpW - width) / 2, top: vpH * 0.14, width, height, portrait: true };
+  }
   const ratio = 9.5 / 6.5; // width:height for the physical card/sleeve
   let width = vpW * 0.88;
   let height = width / ratio;
   const maxHeight = vpH * 0.55;
   if (height > maxHeight){ height = maxHeight; width = height * ratio; }
-  return { left: (vpW - width) / 2, top: (vpH - height) / 2, width, height };
+  return { left: (vpW - width) / 2, top: (vpH - height) / 2, width, height, portrait: false };
 }
 
-// Each button cycles front → back → (retake from front).
+// For CCCD/GPLX: each button cycles front → back → (retake from front).
+// Portrait: single shot, no cycling.
 function nextPhotoSlot(doc){
+  if (doc === 'portrait') return 'portrait';
   if (!draftPhotos[doc + '_front']) return doc + '_front';
   if (!draftPhotos[doc + '_back']) return doc + '_back';
   return doc + '_front'; // both done — clicking again retakes the front
@@ -627,7 +726,7 @@ function openCaptureModal(doc){
   $('captureLabel').textContent = 'Chụp ảnh: ' + PHOTO_LABELS[slot];
   const rect = computeFrameRect(slot);
   const frameEl = $('captureFrame');
-  frameEl.className = 'capture-frame';
+  frameEl.className = 'capture-frame' + (rect.portrait ? ' frame-portrait' : '');
   frameEl.style.left = rect.left + 'px';
   frameEl.style.top = rect.top + 'px';
   frameEl.style.width = rect.width + 'px';
@@ -703,35 +802,17 @@ $('btnCaptureShot').addEventListener('click', () => {
   const viewW = video.clientWidth, viewH = video.clientHeight;
   const coverScale = Math.max(viewW / vw, viewH / vh);
 
-  // Small safety margin: capture a bit MORE than the visual guide shows.
-  // Slight hand movement between framing and tapping the shutter can shift
-  // the card a little — this buffer keeps real content from getting cut off
-  // at the edges (particularly noticeable on the front side, which has text
-  // closer to the card edges than the back).
-  const marginRatio = 0.10;
-  const mx = rect.width * marginRatio;
-  const my = rect.height * marginRatio;
-  const gLeft = rect.left - mx, gTop = rect.top - my;
-  const gWidth = rect.width + mx * 2, gHeight = rect.height + my * 2;
-
-  const sx = gLeft / coverScale + (vw - viewW / coverScale) / 2;
-  const sy = gTop / coverScale + (vh - viewH / coverScale) / 2;
-  const sw = gWidth / coverScale;
-  const sh = gHeight / coverScale;
-
-  // Clamp to the native frame bounds — the margin above could otherwise push
-  // the crop rectangle slightly outside the actual captured image.
-  const csx = Math.max(0, sx);
-  const csy = Math.max(0, sy);
-  const csw = Math.min(sw - (csx - sx), vw - csx);
-  const csh = Math.min(sh - (csy - sy), vh - csy);
+  const sx = rect.left / coverScale + (vw - viewW / coverScale) / 2;
+  const sy = rect.top / coverScale + (vh - viewH / coverScale) / 2;
+  const sw = rect.width / coverScale;
+  const sh = rect.height / coverScale;
 
   const maxDim = 1600;
-  const outScale = Math.min(1, maxDim / Math.max(csw, csh));
+  const outScale = Math.min(1, maxDim / Math.max(sw, sh));
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(csw * outScale));
-  canvas.height = Math.max(1, Math.round(csh * outScale));
-  canvas.getContext('2d').drawImage(video, csx, csy, csw, csh, 0, 0, canvas.width, canvas.height);
+  canvas.width = Math.max(1, Math.round(sw * outScale));
+  canvas.height = Math.max(1, Math.round(sh * outScale));
+  canvas.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   draftPhotos[slot] = canvas.toDataURL('image/jpeg', 0.85);
   renderPhotoPreviews();
   setStatus(`Đã chụp ảnh ${PHOTO_LABELS[slot]} (đã cắt đúng khung).`, 'ok');
@@ -739,6 +820,11 @@ $('btnCaptureShot').addEventListener('click', () => {
 });
 
 function updateDocButtonLabel(doc, btn, baseLabel){
+  if (doc === 'portrait'){
+    btn.textContent = draftPhotos.portrait ? '📷 Ảnh học viên (đã chụp — bấm để chụp lại)' : '📷 Ảnh học viên';
+    btn.classList.toggle('has-photo', !!draftPhotos.portrait);
+    return;
+  }
   const hasFront = !!draftPhotos[doc + '_front'];
   const hasBack = !!draftPhotos[doc + '_back'];
   if (!hasFront) btn.textContent = `📷 ${baseLabel} — Chụp mặt trước`;
@@ -749,6 +835,7 @@ function updateDocButtonLabel(doc, btn, baseLabel){
 function updatePhotoButtons(){
   updateDocButtonLabel('cccd', $('btnPhotoCccd'), 'CCCD');
   updateDocButtonLabel('gplx', $('btnPhotoGplx'), 'GPLX');
+  updateDocButtonLabel('portrait', $('btnPhotoPortrait'), 'Học viên');
 }
 function renderPhotoPreviews(){
   const wrap = $('photoPreviews');
@@ -770,24 +857,10 @@ function renderPhotoPreviews(){
 }
 $('btnPhotoCccd').addEventListener('click', () => openCaptureModal('cccd'));
 $('btnPhotoGplx').addEventListener('click', () => openCaptureModal('gplx'));
+$('btnPhotoPortrait').addEventListener('click', () => openCaptureModal('portrait'));
 
 // ---------- entry list ----------
 $('btnAdd').addEventListener('click', () => {
-  const REQUIRED_FIELDS = [
-    { id: 'f_expiryDate', label: 'Ngày hết hạn CCCD' },
-    { id: 'f_issuingAuthority', label: 'Đơn vị cấp' },
-    { id: 'f_passDate', label: 'Ngày trúng tuyển' },
-    { id: 'f_phone', label: 'Số điện thoại' },
-    { id: 'f_khoa', label: 'Khóa' },
-    { id: 'f_tuition', label: 'Số tiền học phí đã đóng' },
-  ];
-  const missing = REQUIRED_FIELDS.filter(f => !$(f.id).value.trim());
-  if (missing.length){
-    setStatus('Vui lòng nhập đầy đủ thông tin — còn thiếu: ' + missing.map(f => f.label).join(', '), 'err');
-    $(missing[0].id).scrollIntoView({ behavior: 'smooth', block: 'center' });
-    $(missing[0].id).focus();
-    return;
-  }
   const entry = {
     fullName: $('f_fullName').value.trim(),
     dob: $('f_dob').value.trim(),

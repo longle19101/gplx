@@ -22,7 +22,8 @@
     --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, Arial, sans-serif;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);overflow-x:hidden;max-width:100vw;}
+  *{overflow-wrap:break-word;word-break:break-word;}
   body{padding-bottom:48px;}
   header{
     background:linear-gradient(135deg,var(--brand) 0%,var(--brand-2) 100%);
@@ -84,7 +85,9 @@
     width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
     font-family:var(--mono);font-size:.88rem;background:#fbfcfd;color:var(--ink);
   }
-  textarea{resize:vertical;min-height:44px;}
+  textarea{resize:vertical;min-height:44px;word-break:break-all;}
+  input{word-break:break-all;}
+  #rawData{word-break:break-all;}
 
   table{width:100%;border-collapse:collapse;font-size:.78rem;}
   th,td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);}
@@ -114,6 +117,8 @@
   .capture-frame .c-tr{top:-3px;right:-3px;border-left:none;border-bottom:none;}
   .capture-frame .c-bl{bottom:-3px;left:-3px;border-right:none;border-top:none;}
   .capture-frame .c-br{bottom:-3px;right:-3px;border-left:none;border-top:none;}
+  .focus-ring{position:absolute;width:64px;height:64px;margin-left:-32px;margin-top:-32px;border:2px solid var(--gold);border-radius:50%;pointer-events:none;animation:focusPulse .5s ease-out;}
+  @keyframes focusPulse{0%{transform:scale(1.3);opacity:0;}40%{opacity:1;}100%{transform:scale(1);opacity:0;}}
 </style>
 </head>
 <body>
@@ -190,6 +195,7 @@
     <label>Số GPLX</label><input id="f_gplxNumber">
     <label>Hạng bằng lái</label><input id="f_licenseClass" placeholder="VD: A1, B2...">
     <label>Ngày cấp GPLX</label><input id="f_gplxIssueDate" placeholder="dd/mm/yyyy">
+    <label>Ngày hết hạn GPLX</label><input id="f_gplxExpiryDate" placeholder="dd/mm/yyyy">
     <label>Đơn vị cấp</label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
     <label>Ngày trúng tuyển (đạt kết quả sát hạch)</label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
 
@@ -229,10 +235,7 @@
     </div>
     <div id="captureLabel" style="position:absolute;top:16px;left:16px;color:#fff;font-weight:700;font-size:.9rem;text-shadow:0 1px 3px rgba(0,0,0,.6);"></div>
     <button id="btnCaptureCancel" style="position:absolute;top:14px;right:14px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:.8rem;">Huỷ</button>
-    <div id="captureZoomRow" style="display:none;position:absolute;bottom:110px;left:10%;right:10%;align-items:center;gap:8px;">
-      <span style="color:#fff;font-size:.75rem;text-shadow:0 1px 3px rgba(0,0,0,.6);">🔍</span>
-      <input type="range" id="captureZoomSlider" min="1" max="5" step="0.1" value="1" style="flex:1;">
-    </div>
+    <div style="position:absolute;bottom:96px;left:0;right:0;text-align:center;color:#fff;font-size:.72rem;text-shadow:0 1px 3px rgba(0,0,0,.6);">Chạm vào màn hình để lấy nét</div>
     <div style="position:absolute;bottom:28px;left:0;right:0;display:flex;justify-content:center;">
       <button id="btnCaptureShot" style="width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid var(--gold);font-size:1.4rem;"></button>
     </div>
@@ -246,7 +249,7 @@
       <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
     </div>
     <div id="formSetupStatus" class="status"></div>
-    <div class="hint">Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn CCCD, Đơn vị cấp, Ngày trúng tuyển, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Sale, Ngày hết hạn GPLX (câu bổ sung ở cuối — app luôn để trống, bạn tự điền công thức trên Sheet).</div>
+    <div class="hint">Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn CCCD, Đơn vị cấp, Ngày trúng tuyển, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Sale, Ngày hết hạn GPLX (câu bổ sung ở cuối — lấy từ QR code GPLX).</div>
   </div>
 
   <div class="card">
@@ -491,7 +494,7 @@ function parseOcrText(text){
 function resetDraft(){
   ['f_fullName','f_dob','f_phone','f_khoa','f_tuition',
    'f_idNumber','f_oldId','f_gender','f_address','f_issueDate',
-   'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_expiryDate','f_issuingAuthority','f_passDate']
+   'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_gplxExpiryDate','f_expiryDate','f_issuingAuthority','f_passDate']
     .forEach(id => { $(id).value = ''; });
   $('cccdBadge').textContent = 'Chưa quét';
   $('cccdBadge').className = 'badge pending';
@@ -520,6 +523,7 @@ function showFields(data, source, docType){
     $('f_gplxNumber').value = data.idNumber || '';
     $('f_licenseClass').value = data.licenseClass || '';
     $('f_gplxIssueDate').value = data.issueDate || '';
+    $('f_gplxExpiryDate').value = data.expiryDate || '';
     $('f_issuingAuthority').value = data.issuingAuthority || '';
     $('gplxBadge').textContent = 'Đã quét';
     $('gplxBadge').className = 'badge qr';
@@ -730,7 +734,6 @@ function openCaptureModal(doc){
   frameEl.style.right = 'auto';
   frameEl.style.bottom = 'auto';
   $('photoCaptureModal').style.display = 'block';
-  $('captureZoomRow').style.display = 'none';
   navigator.mediaDevices.getUserMedia({
     video: {
       facingMode: { ideal: 'environment' },
@@ -746,15 +749,8 @@ function openCaptureModal(doc){
     const track = stream.getVideoTracks()[0];
     try{
       const caps = track.getCapabilities ? track.getCapabilities() : {};
-      const advanced = [];
-      if (caps.focusMode && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
-      if (advanced.length) track.applyConstraints({ advanced });
-      if (caps.zoom){
-        $('captureZoomRow').style.display = 'flex';
-        $('captureZoomSlider').min = caps.zoom.min;
-        $('captureZoomSlider').max = caps.zoom.max;
-        $('captureZoomSlider').step = caps.zoom.step || 0.1;
-        $('captureZoomSlider').value = caps.zoom.min;
+      if (caps.focusMode && caps.focusMode.includes('continuous')){
+        track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
       }
     }catch(e){ /* capabilities API not supported on this device — continues with default focus */ }
   }).catch(err => {
@@ -762,11 +758,30 @@ function openCaptureModal(doc){
     closeCaptureModal();
   });
 }
-$('captureZoomSlider').addEventListener('input', () => {
-  if (captureStream){
-    const track = captureStream.getVideoTracks()[0];
-    track.applyConstraints({ advanced: [{ zoom: parseFloat($('captureZoomSlider').value) }] }).catch(()=>{});
-  }
+// Tap-to-focus: nudges the camera to refocus at the tapped point (where the
+// device supports it) and always shows a focus-ring animation for feedback.
+$('captureVideo').addEventListener('click', (e) => {
+  if (!captureStream) return;
+  const rect = e.target.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
+
+  const ring = document.createElement('div');
+  ring.className = 'focus-ring';
+  ring.style.left = (e.clientX - rect.left) + 'px';
+  ring.style.top = (e.clientY - rect.top) + 'px';
+  $('photoCaptureModal').appendChild(ring);
+  setTimeout(() => ring.remove(), 500);
+
+  const track = captureStream.getVideoTracks()[0];
+  try{
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const advanced = [];
+    if (caps.pointsOfInterest) advanced.push({ pointsOfInterest: [{ x, y }] });
+    if (caps.focusMode && caps.focusMode.includes('single-shot')) advanced.push({ focusMode: 'single-shot' });
+    else if (caps.focusMode && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+    if (advanced.length) track.applyConstraints({ advanced }).catch(()=>{});
+  }catch(err){ /* tap-to-focus not supported on this device — ring still shows for feedback */ }
 });
 function closeCaptureModal(){
   if (captureStream) captureStream.getTracks().forEach(t => t.stop());
@@ -861,7 +876,7 @@ $('btnAdd').addEventListener('click', () => {
     licenseClass: $('f_licenseClass').value.trim(),
     gplxIssueDate: $('f_gplxIssueDate').value.trim(),
     expiryDate: $('f_expiryDate').value.trim(),
-    expiryDateGplxEnd: '', // luôn để trống — cột này bạn tự tính bằng công thức trên Sheet
+    expiryDateGplxEnd: $('f_gplxExpiryDate').value.trim(),
     issuingAuthority: $('f_issuingAuthority').value.trim(),
     passDate: $('f_passDate').value.trim(),
     source: lastSource,
@@ -1039,11 +1054,11 @@ $('btnExportPhotos').addEventListener('click', async () => {
 
 // ---------- CSV export & encryption (no network required) ----------
 function entriesToCsv(list){
-  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp CCCD','Ngày hết hạn CCCD','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng','Sale'];
+  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp CCCD','Ngày hết hạn CCCD','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Ngày hết hạn GPLX','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng','Sale'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   const rows = list.map(e => [
     e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.expiryDate,
-    e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.issuingAuthority, e.passDate,
+    e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.expiryDateGplxEnd, e.issuingAuthority, e.passDate,
     e.source, e.phone, e.khoa, e.tuition, e.sale
   ].map(esc).join(','));
   return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel

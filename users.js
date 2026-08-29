@@ -8,7 +8,7 @@
 // "View Source" trang chính, không hơn. Nếu cần bảo mật thật, cần có máy chủ
 // backend xác thực riêng.
 const USERS = [
-  { username: 'sale1', password: 'doimatkhaunay1' },
-  { username: 'sale2', password: 'doimatkhaunay2' },
+  { username: 'admin', password: 'minad' },
+  { username: 'hong', password: 'honggn' },
   // { username: 'ten_khac', password: 'mat_khau_khac' },
 ];

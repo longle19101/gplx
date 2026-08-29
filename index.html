@@ -188,29 +188,33 @@
     <h2>Thông tin học viên <span id="srcBadge"></span></h2>
     <label>Họ và tên</label><input id="f_fullName">
     <label>Ngày sinh</label><input id="f_dob" placeholder="dd/mm/yyyy">
-
-    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
-    <h2>Thông tin CCCD <span id="cccdBadge" class="badge pending">Chưa quét</span></h2>
-    <label>Số CCCD</label><input id="f_idNumber">
-    <label>Số CMND cũ</label><input id="f_oldId">
     <label>Giới tính</label><input id="f_gender">
-    <label>Địa chỉ</label><textarea id="f_address"></textarea>
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
+    <label>Số CCCD <span id="cccdBadge" class="badge pending">Chưa quét</span></label><input id="f_idNumber">
     <label>Ngày cấp CCCD</label><input id="f_issueDate" placeholder="dd/mm/yyyy">
-    <label>Ngày hết hạn CCCD <span class="req">*</span></label><input id="f_expiryDate" placeholder="dd/mm/yyyy — không có trong QR, cần nhập tay">
+    <label>Nơi cấp CCCD</label><input id="f_cccdPlaceOfIssue" placeholder="Cục CSQLHCTTXH">
+    <label>Địa chỉ</label><textarea id="f_address"></textarea>
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
-    <h2>Thông tin GPLX <span id="gplxBadge" class="badge pending">Chưa quét</span></h2>
-    <label>Số GPLX</label><input id="f_gplxNumber" placeholder="Nếu có 2 bằng, quét lần 2 sẽ tự nối bằng dấu |">
-    <label>Hạng bằng lái</label><input id="f_licenseClass" placeholder="VD: A1, B2... (2 bằng sẽ nối bằng dấu |)">
-    <label>Ngày cấp GPLX</label><input id="f_gplxIssueDate" placeholder="dd/mm/yyyy">
-    <label>Nơi cấp GPLX</label><input id="f_gplxPlaceOfIssue" placeholder="Cục Cảnh sát giao thông">
-    <label>Đơn vị cấp <span class="req">*</span></label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
+    <label>Số GPLX <span id="gplxBadge" class="badge pending">Chưa quét</span></label><input id="f_gplxNumber" placeholder="Nếu có 2 bằng, quét lần 2 sẽ tự nối bằng dấu |">
+    <label>Hạng GPLX</label><input id="f_licenseClass" placeholder="VD: A1, B2... (2 bằng sẽ nối bằng dấu |)">
     <label>Ngày trúng tuyển (đạt kết quả sát hạch) <span class="req">*</span></label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
+    <label>Ngày cấp GPLX</label><input id="f_gplxIssueDate" placeholder="dd/mm/yyyy">
+    <label>Đơn vị cấp</label><input id="f_issuingAuthority">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
-    <label>Số điện thoại <span class="req">*</span></label><input id="f_phone" type="tel" placeholder="09xxxxxxxx">
-    <label>Khóa <span class="req">*</span></label><input id="f_khoa" placeholder="VD: K15">
-    <label>Số tiền học phí đã đóng <span class="req">*</span></label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2000000">
+    <label>Khóa <span class="req">*</span></label>
+    <div class="row">
+      <select id="f_khoaClass" style="flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-family:var(--sans);font-size:.88rem;background:#fbfcfd;color:var(--ink);">
+        <option value="">-- Hạng --</option>
+        <option>A</option><option>A1</option><option>B.01</option><option>B</option>
+        <option>C1</option><option>BC</option><option>BD2</option><option>C1D2</option>
+      </select>
+      <input id="f_khoaNumber" placeholder="VD: K24">
+    </div>
+    <label>Số điện thoại <span class="req">*</span></label><input id="f_phone" type="tel" placeholder="Đủ 10 số">
+    <label>Số tiền học phí đã đóng <span class="req">*</span></label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2.000.000">
 
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
     <h2>Ảnh đính kèm</h2>
@@ -479,13 +483,55 @@ function attachDateMask(id){
     el.value = out;
   });
 }
-['f_dob','f_issueDate','f_expiryDate','f_gplxIssueDate','f_passDate'].forEach(attachDateMask);
+['f_dob','f_issueDate'].forEach(attachDateMask);
+
+// Same as attachDateMask, but supports typing a SECOND date after the first
+// is complete — once dd/mm/yyyy is finished, a "|" is auto-inserted so the
+// person can keep typing a second date (for people with 2 GPLX). If they
+// leave without typing a second date, the trailing "|" is stripped on blur.
+function attachMultiDateMask(id){
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    const hadTrailingBar = el.value.endsWith('|');
+    const segments = el.value.split('|');
+    const lastRaw = segments[segments.length - 1];
+    const digits = lastRaw.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 4) formatted = digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4);
+    else if (digits.length > 2) formatted = digits.slice(0,2) + '/' + digits.slice(2);
+    segments[segments.length - 1] = formatted;
+    let out = segments.join('|');
+    // Just completed a date (10 chars = dd/mm/yyyy) and not already followed by "|" → offer a second slot
+    if (formatted.length === 10 && !hadTrailingBar && segments.length === 1){
+      out += '|';
+    }
+    el.value = out;
+  });
+  el.addEventListener('blur', () => {
+    if (el.value.endsWith('|')) el.value = el.value.slice(0, -1);
+  });
+}
+['f_passDate','f_gplxIssueDate'].forEach(attachMultiDateMask);
+
+// ---------- thousands separator for tuition amount ----------
+function attachThousandsMask(id){
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    const digits = el.value.replace(/\D/g, '');
+    el.value = digits ? Number(digits).toLocaleString('en-US') : '';
+  });
+}
+attachThousandsMask('f_tuition');
 
 function resetDraft(){
-  ['f_fullName','f_dob','f_phone','f_khoa','f_tuition',
-   'f_idNumber','f_oldId','f_gender','f_address','f_issueDate',
-   'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_gplxPlaceOfIssue','f_expiryDate','f_issuingAuthority','f_passDate']
+  ['f_fullName','f_dob','f_phone','f_khoaNumber','f_tuition',
+   'f_idNumber','f_gender','f_address','f_issueDate','f_cccdPlaceOfIssue',
+   'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_passDate']
     .forEach(id => { $(id).value = ''; });
+  $('f_khoaClass').value = '';
+  $('f_issuingAuthority').value = 'Cục CSGT'; // pre-filled default — user can edit or leave as-is
   $('cccdBadge').textContent = 'Chưa quét';
   $('cccdBadge').className = 'badge pending';
   $('gplxBadge').textContent = 'Chưa quét';
@@ -522,18 +568,23 @@ function showFields(data, source, docType){
   if (!$('f_dob').value.trim() && data.dob) $('f_dob').value = data.dob;
 
   if (docType === 'gplx'){
+    const isSecondOrLater = !!$('f_gplxNumber').value.trim();
     appendOrSet('f_gplxNumber', data.idNumber);
     appendOrSet('f_licenseClass', data.licenseClass);
     appendOrSet('f_gplxIssueDate', data.issueDate);
-    // Nơi cấp GPLX KHÔNG tự điền từ QR — để trống, có placeholder gợi ý,
-    // và khi gửi sẽ tự lấy "00" nếu người dùng không nhập gì.
-    // Đơn vị cấp KHÔNG tự điền từ QR — luôn để người dùng tự nhập tay,
-    // nên không ghi đè giá trị đã có ở đây.
+    if (isSecondOrLater){
+      // "Đơn vị cấp" isn't in the QR, so it can't use appendOrSet — but a
+      // 2nd GPLX still needs a 2nd segment, duplicating whatever the first
+      // segment currently holds (default or edited) to keep the "|" count
+      // in sync with Số GPLX / Hạng GPLX.
+      const cur = $('f_issuingAuthority').value.trim();
+      const firstSeg = cur.split('|')[0].trim() || 'Cục CSGT';
+      $('f_issuingAuthority').value = (cur || firstSeg) + '|' + firstSeg;
+    }
     $('gplxBadge').textContent = 'Đã quét';
     $('gplxBadge').className = 'badge qr';
   } else {
     $('f_idNumber').value = data.idNumber || '';
-    $('f_oldId').value = data.oldId || '';
     $('f_gender').value = data.gender || '';
     $('f_address').value = data.address || '';
     $('f_issueDate').value = data.issueDate || '';
@@ -617,7 +668,12 @@ $('btnStart').addEventListener('click', async () => {
       $('zoomSlider').min = caps.zoom.min;
       $('zoomSlider').max = caps.zoom.max;
       $('zoomSlider').step = caps.zoom.step || 0.1;
-      $('zoomSlider').value = caps.zoom.min;
+      // Default to a higher zoom than the minimum — GPLX/CCCD QR codes are
+      // small and dense, and most phones start too zoomed-out to read them
+      // reliably. ~35% of the way to max works well in practice.
+      const defaultZoom = caps.zoom.min + (caps.zoom.max - caps.zoom.min) * 0.35;
+      $('zoomSlider').value = defaultZoom;
+      html5QrCode.applyVideoConstraints({ advanced: [{ zoom: defaultZoom }] }).catch(()=>{});
     } else {
       $('zoomRow').style.display = 'none';
     }
@@ -831,14 +887,31 @@ $('btnPhotoGplx1').addEventListener('click', () => openCaptureModal('gplx1'));
 $('btnPhotoGplx2').addEventListener('click', () => openCaptureModal('gplx2'));
 $('btnPhotoGplx3').addEventListener('click', () => openCaptureModal('gplx3'));
 
+// Replaces any segment that equals the (unedited) default text with "00" —
+// used for fields that default to a fixed value and should submit "00" to
+// the Form when left untouched. Preserves "|" for multi-GPLX entries.
+function applyDefaultFallback(rawValue, defaultText){
+  if (!rawValue) return '00';
+  return rawValue.split('|').map(s => {
+    const t = s.trim();
+    return (!t || t === defaultText) ? '00' : t;
+  }).join('|');
+}
+
 // ---------- entry list ----------
 $('btnAdd').addEventListener('click', () => {
+  const phoneDigits = $('f_phone').value.replace(/\D/g, '');
+  if (phoneDigits.length !== 10){
+    setStatus('VUI LÒNG KIỂM TRA LẠI SDT', 'err');
+    $('f_phone').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $('f_phone').focus();
+    return;
+  }
   const REQUIRED_FIELDS = [
-    { id: 'f_expiryDate', label: 'Ngày hết hạn CCCD' },
-    { id: 'f_issuingAuthority', label: 'Đơn vị cấp' },
     { id: 'f_passDate', label: 'Ngày trúng tuyển' },
     { id: 'f_phone', label: 'Số điện thoại' },
-    { id: 'f_khoa', label: 'Khóa' },
+    { id: 'f_khoaClass', label: 'Khóa (chọn hạng)' },
+    { id: 'f_khoaNumber', label: 'Khóa (nhập số khóa)' },
     { id: 'f_tuition', label: 'Số tiền học phí đã đóng' },
   ];
   const missing = REQUIRED_FIELDS.filter(f => !$(f.id).value.trim());
@@ -848,23 +921,24 @@ $('btnAdd').addEventListener('click', () => {
     $(missing[0].id).focus();
     return;
   }
+  const khoaClass = $('f_khoaClass').value.trim();
+  const khoaNumber = $('f_khoaNumber').value.trim();
   const entry = {
     fullName: $('f_fullName').value.trim(),
     dob: $('f_dob').value.trim(),
     phone: $('f_phone').value.trim(),
-    khoa: $('f_khoa').value.trim(),
+    khoa: khoaClass && khoaNumber ? `${khoaClass}-${khoaNumber}` : (khoaNumber || khoaClass),
     tuition: $('f_tuition').value.trim(),
     idNumber: $('f_idNumber').value.trim(),
-    oldId: $('f_oldId').value.trim(),
+    oldId: '',
     gender: $('f_gender').value.trim(),
     address: $('f_address').value.trim(),
     issueDate: $('f_issueDate').value.trim(),
     gplxNumber: $('f_gplxNumber').value.trim(),
     licenseClass: $('f_licenseClass').value.trim(),
     gplxIssueDate: $('f_gplxIssueDate').value.trim(),
-    expiryDate: $('f_expiryDate').value.trim(),
-    gplxPlaceOfIssue: $('f_gplxPlaceOfIssue').value.trim() || '00',
-    issuingAuthority: $('f_issuingAuthority').value.trim(),
+    cccdPlaceOfIssue: applyDefaultFallback($('f_cccdPlaceOfIssue').value.trim(), 'Cục CSQLHCTTXH'),
+    issuingAuthority: applyDefaultFallback($('f_issuingAuthority').value.trim(), 'Cục CSGT'),
     passDate: $('f_passDate').value.trim(),
     source: lastSource,
     sale: localStorage.getItem('cccd_current_sale') || '',
@@ -919,16 +993,26 @@ function escapeHtml(s){
 renderEntries();
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate', 'source', 'phone', 'khoa', 'tuition', 'sale', 'gplxPlaceOfIssue'];
-// Hard-coded default so the app works out of the box with no setup. The
-// "Cài đặt nâng cao" section (collapsed) can still override this if the Form
-// is ever rebuilt with a different link.
-const DEFAULT_FORM_LINK = 'https://docs.google.com/forms/d/e/1FAIpQLSc_QLkhYws6bWFfh1HufU8VxTtilVaEaIJeavU_LM532_NGlA/viewform?usp=pp_url&entry.721717004=1&entry.220886775=1&entry.1878504099=1&entry.209085692=22&entry.1001410458=22&entry.1237451213=22&entry.1604608859=22&entry.1873787372=22&entry.1425124983=22&entry.974898262=222&entry.2124622910=22&entry.700911909=22&entry.1948972260=22&entry.955486346=22&entry.1281859790=22&entry.1959319096=22&entry.204427173=22&entry.1342035105=22&entry.968258207=22';
+// Positions are FIXED to match the already-built Google Form — do not
+// reorder without also rebuilding the Form and getting a new pre-filled
+// link. 'oldId' (pos 3) and the last slot are unused placeholders kept for
+// backward compatibility; 'expiryDate' now actually holds "Nơi cấp CCCD".
+const FIELD_ORDER = ['fullName', 'dob', 'gender', 'idNumber', 'issueDate', 'cccdPlaceOfIssue', 'address', 'gplxNumber', 'licenseClass', 'passDate', 'gplxIssueDate', 'issuingAuthority', 'khoa', 'source', 'phone', 'tuition', 'sale'];
+// No default link — the Form's field order changed significantly (CCCD/GPLX
+// fields restructured, "Số CMND cũ" removed, "Nơi cấp CCCD" added), so any
+// previously-saved link is very likely stale and would silently misfile data
+// into the wrong Sheet columns. Must be set explicitly below until a fresh
+// pre-filled link (17 questions, in the exact FIELD_ORDER above) is provided.
 let formConfig = null;
-try { formConfig = JSON.parse(localStorage.getItem('cccd_form_config') || 'null'); } catch(e){ formConfig = null; }
-if (!formConfig){
-  try { formConfig = parseFormConfig(DEFAULT_FORM_LINK); } catch(e){ formConfig = null; }
-}
+try {
+  const saved = JSON.parse(localStorage.getItem('cccd_form_config') || 'null');
+  // Safety check: if the saved config doesn't have the same number of fields
+  // as the current FIELD_ORDER, it's from an older field layout — discard it
+  // rather than risk silently submitting to the wrong columns.
+  if (saved && saved.fieldToEntry && Object.keys(saved.fieldToEntry).length === FIELD_ORDER.length){
+    formConfig = saved;
+  }
+} catch(e){ formConfig = null; }
 if (formConfig) $('formPrefillLink').value = formConfig.rawLink || '';
 
 function parseFormConfig(prefillLink){
@@ -960,6 +1044,21 @@ $('btnSaveForm').addEventListener('click', () => {
 // Submits via a hidden iframe + real <form> POST — this is the standard,
 // officially-supported way Google Forms accepts submissions from any external
 // page, so it doesn't hit the CORS/redirect issues a custom Apps Script does.
+// Converts "dd/mm/yyyy" (or "dd/mm/yyyy|dd/mm/yyyy" for 2 GPLX) into
+// "yyyymmdd" for Form submission only — the web UI and CSV export keep
+// dd/mm/yyyy throughout; this conversion happens right before sending.
+function toYyyymmdd(dateStr){
+  if (!dateStr) return '';
+  return dateStr.split('|').map(seg => {
+    const parts = seg.trim().split('/');
+    if (parts.length !== 3) return seg.trim();
+    const [d, m, y] = parts;
+    if (!d || !m || !y) return seg.trim();
+    return y + m.padStart(2,'0') + d.padStart(2,'0');
+  }).join('|');
+}
+const DATE_FIELDS_FOR_FORM = ['dob', 'passDate', 'gplxIssueDate'];
+
 function submitToGoogleForm(entry){
   return new Promise((resolve) => {
     let iframe = document.getElementById('formSubmitIframe');
@@ -978,7 +1077,9 @@ function submitToGoogleForm(entry){
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = formConfig.fieldToEntry[field];
-      input.value = entry[field] || '';
+      let value = entry[field] || '';
+      if (DATE_FIELDS_FOR_FORM.includes(field)) value = toYyyymmdd(value);
+      input.value = value;
       form.appendChild(input);
     });
     document.body.appendChild(form);
@@ -1056,12 +1157,12 @@ $('btnExportPhotos').addEventListener('click', async () => {
 
 // ---------- CSV export & encryption (no network required) ----------
 function entriesToCsv(list){
-  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp CCCD','Ngày hết hạn CCCD','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Nơi cấp GPLX','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng','Sale'];
+  const headers = ['Họ tên','Ngày sinh','Giới tính','Số CCCD','Ngày cấp CCCD','Nơi cấp CCCD','Địa chỉ','Số GPLX','Hạng GPLX','Ngày trúng tuyển','Ngày cấp GPLX','Đơn vị cấp','Khóa','Nguồn','Số điện thoại','Học phí đã đóng','Sale'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   const rows = list.map(e => [
-    e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.expiryDate,
-    e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.gplxPlaceOfIssue, e.issuingAuthority, e.passDate,
-    e.source, e.phone, e.khoa, e.tuition, e.sale
+    e.fullName, e.dob, e.gender, e.idNumber, e.issueDate, e.cccdPlaceOfIssue, e.address,
+    e.gplxNumber, e.licenseClass, e.passDate, e.gplxIssueDate, e.issuingAuthority, e.khoa,
+    e.source, e.phone, e.tuition, e.sale
   ].map(esc).join(','));
   return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel
 }

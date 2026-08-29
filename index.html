@@ -443,6 +443,10 @@ function parseGplxQr(raw){
     if (!s || s.length !== 8) return s || '';
     return `${s.slice(0,2)}/${s.slice(2,4)}/${s.slice(4,8)}`;
   };
+  // A single GPLX can list multiple classes in one QR field, separated by
+  // commas (e.g. "A, D") — normalize to "|" to match the format used
+  // elsewhere for multi-value fields (e.g. when scanning 2 separate GPLX).
+  const normalizeClasses = s => (s || '').split(',').map(x => x.trim()).filter(Boolean).join('|');
   if (raw.includes(';')){
     const parts = raw.split(';');
     return {
@@ -453,7 +457,7 @@ function parseGplxQr(raw){
       gender: '',
       address: '',
       issueDate: fmtDate(parts[4]) || parts[4] || '',
-      licenseClass: parts[3] || '',
+      licenseClass: normalizeClasses(parts[3]),
       expiryDate: fmtDate(parts[5]) || parts[5] || '',
       issuingAuthority: '', // luôn để trống — nhập tay, không lấy từ QR
       raw
@@ -468,7 +472,7 @@ function parseGplxQr(raw){
       idNumber: parts[0] || '', oldId: '', fullName: parts[1] || '',
       dob: fmtDate(parts[2]) || parts[2] || '', gender: '', address: '',
       issueDate: fmtDate(parts[5]) || parts[5] || '',
-      licenseClass: parts[3] || '', expiryDate: '', issuingAuthority: '',
+      licenseClass: normalizeClasses(parts[3]), expiryDate: '', issuingAuthority: '',
       raw
     };
   }

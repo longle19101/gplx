@@ -269,6 +269,10 @@
       <button class="primary" id="btnSubmitForm">Gửi tất cả lên Google Sheet (qua Form)</button>
     </div>
     <div id="formSubmitStatus" class="status"></div>
+    <details style="margin-top:6px;">
+      <summary style="font-size:.72rem;">Xem chi tiết lần gửi gần nhất (debug)</summary>
+      <textarea id="lastSubmitDebug" readonly style="min-height:140px;font-size:.68rem;margin-top:6px;"></textarea>
+    </details>
 
     <div class="row">
       <button class="gold" id="btnExportPhotos">Tải tất cả ảnh (file ZIP)</button>
@@ -1073,15 +1077,20 @@ function submitToGoogleForm(entry){
     form.method = 'POST';
     form.action = formConfig.actionUrl;
     form.target = 'formSubmitTarget';
+    const debugLines = [`actionUrl: ${formConfig.actionUrl}`];
     FIELD_ORDER.forEach(field => {
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = formConfig.fieldToEntry[field];
       let value = entry[field] || '';
-      if (DATE_FIELDS_FOR_FORM.includes(field)) value = toYyyymmdd(value);
+      const isDateField = DATE_FIELDS_FOR_FORM.includes(field);
+      if (isDateField) value = toYyyymmdd(value);
       input.value = value;
       form.appendChild(input);
+      debugLines.push(`${field}${isDateField ? ' [date-converted]' : ''} → ${formConfig.fieldToEntry[field]} = "${value}"`);
     });
+    const dbg = document.getElementById('lastSubmitDebug');
+    if (dbg) dbg.value = debugLines.join('\n');
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);

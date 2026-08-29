@@ -631,8 +631,10 @@ $('btnStart').addEventListener('click', async () => {
   // versions call the sizing function before the video's real dimensions are
   // ready, silently locking in a broken (zero/NaN) scan region for the whole
   // session even though the camera preview looks completely normal. A fixed
-  // number sidesteps that timing dependency entirely.
-  const readerBoxPx = Math.floor(Math.min(window.innerWidth, window.innerHeight * 0.42) * 0.72);
+  // number sidesteps that timing dependency entirely. Measured from the
+  // actual reader box element (not the window) so it always fits inside it.
+  const readerRect = $('reader-wrap').getBoundingClientRect();
+  const readerBoxPx = Math.floor(Math.min(readerRect.width, readerRect.height) * 0.7) || 220;
   const scanConfig = {
     fps: 10,
     qrbox: { width: readerBoxPx, height: readerBoxPx },

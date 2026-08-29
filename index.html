@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
 <title>Quét CCCD/GPLX → Google Sheet</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="users.js"></script>
 <style>
@@ -670,6 +670,11 @@ $('btnStart').addEventListener('click', async () => {
     }
   }catch(e){ $('zoomRow').style.display = 'none'; }
 
+  if (!barcodeDetector && typeof jsQR !== 'function'){
+    setStatus('Không tải được thư viện quét mã QR (kiểm tra kết nối mạng, thử tải lại trang). Camera vẫn mở nhưng không thể giải mã.', 'err');
+    stopScanner();
+    return;
+  }
   setStatus('Đang quét… giữ thẻ cách camera 10–15cm, đủ sáng, và giữ yên vài giây để nét.');
   scanLoop();
 });

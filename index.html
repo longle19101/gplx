@@ -627,13 +627,15 @@ $('btnStart').addEventListener('click', async () => {
     showFields(data, 'qr', dt);
     stopScanner();
   };
+  // Fixed pixel size instead of a function-based qrbox — some iOS Safari
+  // versions call the sizing function before the video's real dimensions are
+  // ready, silently locking in a broken (zero/NaN) scan region for the whole
+  // session even though the camera preview looks completely normal. A fixed
+  // number sidesteps that timing dependency entirely.
+  const readerBoxPx = Math.floor(Math.min(window.innerWidth, window.innerHeight * 0.42) * 0.72);
   const scanConfig = {
-    fps: 12,
-    qrbox: (viewfinderWidth, viewfinderHeight) => {
-      const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
-      return { width: size, height: size };
-    },
-    aspectRatio: 1.0,
+    fps: 10,
+    qrbox: { width: readerBoxPx, height: readerBoxPx },
     videoConstraints: {
       facingMode: { ideal: 'environment' },
       width: { ideal: 1920 },
@@ -1067,7 +1069,7 @@ function toYyyymmdd(dateStr){
     return y + m.padStart(2,'0') + d.padStart(2,'0');
   }).join('|');
 }
-const DATE_FIELDS_FOR_FORM = ['dob', 'issueDate', 'passDate', 'gplxIssueDate'];
+const DATE_FIELDS_FOR_FORM = ['passDate', 'gplxIssueDate']; // Ngày sinh & Ngày cấp CCCD giữ nguyên dd/mm/yyyy theo yêu cầu
 
 function submitToGoogleForm(entry){
   return new Promise((resolve) => {

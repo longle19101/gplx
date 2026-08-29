@@ -995,18 +995,17 @@ function escapeHtml(s){
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 renderEntries();
+resetDraft(); // ensures default values (like "Cục CSGT") show from the very first load, not just after the first Add/Discard
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-// Positions are FIXED to match the already-built Google Form — do not
-// reorder without also rebuilding the Form and getting a new pre-filled
-// link. 'oldId' (pos 3) and the last slot are unused placeholders kept for
-// backward compatibility; 'expiryDate' now actually holds "Nơi cấp CCCD".
+// Positions are FIXED to match the already-built Google Form (verified
+// 17/17 against the Form's real question order) — do not reorder without
+// also rebuilding the Form and getting a new pre-filled link.
 const FIELD_ORDER = ['fullName', 'dob', 'gender', 'idNumber', 'issueDate', 'cccdPlaceOfIssue', 'address', 'gplxNumber', 'licenseClass', 'passDate', 'gplxIssueDate', 'issuingAuthority', 'khoa', 'source', 'phone', 'tuition', 'sale'];
-// No default link — the Form's field order changed significantly (CCCD/GPLX
-// fields restructured, "Số CMND cũ" removed, "Nơi cấp CCCD" added), so any
-// previously-saved link is very likely stale and would silently misfile data
-// into the wrong Sheet columns. Must be set explicitly below until a fresh
-// pre-filled link (17 questions, in the exact FIELD_ORDER above) is provided.
+// Hard-coded default, verified to match the Form's actual question order
+// (checked twice with distinct labeled test values). "Cài đặt nâng cao" can
+// still override this if the Form is ever rebuilt with a different link.
+const DEFAULT_FORM_LINK = 'https://docs.google.com/forms/d/e/1FAIpQLSc_QLkhYws6bWFfh1HufU8VxTtilVaEaIJeavU_LM532_NGlA/viewform?usp=pp_url&entry.721717004=9999&entry.220886775=9999&entry.1878504099=9999&entry.209085692=9999&entry.1001410458=9999&entry.1237451213=9999&entry.1873787372=9999&entry.1425124983=9999&entry.974898262=9999&entry.2124622910=9999&entry.700911909=9999&entry.1948972260=9999&entry.1959319096=9999&entry.955486346=9999&entry.1281859790=9999&entry.204427173=9999&entry.1342035105=9999';
 let formConfig = null;
 try {
   const saved = JSON.parse(localStorage.getItem('cccd_form_config') || 'null');
@@ -1017,6 +1016,9 @@ try {
     formConfig = saved;
   }
 } catch(e){ formConfig = null; }
+if (!formConfig){
+  try { formConfig = parseFormConfig(DEFAULT_FORM_LINK); } catch(e){ formConfig = null; }
+}
 if (formConfig) $('formPrefillLink').value = formConfig.rawLink || '';
 
 function parseFormConfig(prefillLink){

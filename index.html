@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
 <title>Quét CCCD/GPLX → Google Sheet</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="users.js"></script>
 <style>
@@ -51,7 +51,7 @@
   @supports not (aspect-ratio: 4/3){
     #reader-wrap{ height:0; padding-bottom:75%; max-height:none; }
   }
-  #reader{width:100%;height:100%;position:absolute;inset:0;}
+  #reader{width:100%;height:100%;position:absolute;inset:0;object-fit:cover;background:#000;}
   #reader video{object-fit:cover;width:100%!important;height:100%!important;}
   .viewfinder-frame{
     position:absolute;inset:12%;border:2px solid rgba(200,150,30,.85);border-radius:10px;
@@ -166,7 +166,7 @@
       <option value="gplx">Giấy phép lái xe (GPLX)</option>
     </select>
     <div id="reader-wrap" class="idle" style="margin-top:10px;">
-      <div id="reader"></div>
+      <video id="reader" autoplay playsinline muted></video>
       <div class="viewfinder-frame">
         <div class="corner c-tl"></div><div class="corner c-tr"></div>
         <div class="corner c-bl"></div><div class="corner c-br"></div>
@@ -376,7 +376,6 @@ $('btnLogout').addEventListener('click', () => {
 });
 checkLogin();
 
-let html5QrCode = null;
 let entries = [];
 let lastSource = 'qr';
 let draftPhotos = {}; // { cccd: dataURL, gplx: dataURL, portrait: dataURL } for the entry currently being reviewed
@@ -609,7 +608,19 @@ function setStatus(msg, kind){
   el.className = 'status' + (kind ? ' '+kind : '');
 }
 
-// ---------- QR scanning ----------
+// ---------- QR scanning (self-managed: BarcodeDetector native API where
+// available, jsQR as a lightweight fallback everywhere else — this avoids
+// all the internal timing/sizing issues we kept hitting with the previous
+// wrapper library) ----------
+let scanStream = null;
+let scanLoopId = null;
+let barcodeDetector = null;
+if (typeof window.BarcodeDetector !== 'undefined'){
+  try { barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e){ barcodeDetector = null; }
+}
+const scanCanvas = document.createElement('canvas');
+const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+
 $('btnStart').addEventListener('click', async () => {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     setStatus('Trình duyệt này không hỗ trợ camera (getUserMedia không khả dụng) — kiểm tra bạn đang mở đúng bằng Safari (không phải trình duyệt thu nhỏ trong app khác), và trang đang chạy trên HTTPS.', 'err');
@@ -619,91 +630,101 @@ $('btnStart').addEventListener('click', async () => {
   $('btnStart').disabled = true;
   $('btnStop').disabled = false;
   setStatus('Đang mở camera…');
-  html5QrCode = new Html5Qrcode('reader', { verbose: false });
-  const qrSuccess = (decodedText) => {
-    setStatus('Đã đọc được mã QR.', 'ok');
-    const dt = $('docType').value;
-    const data = dt === 'gplx' ? parseGplxQr(decodedText) : parseCccdQr(decodedText);
-    showFields(data, 'qr', dt);
-    stopScanner();
-  };
-  // Fixed pixel size instead of a function-based qrbox — some iOS Safari
-  // versions call the sizing function before the video's real dimensions are
-  // ready, silently locking in a broken (zero/NaN) scan region for the whole
-  // session even though the camera preview looks completely normal. A fixed
-  // number sidesteps that timing dependency entirely. Measured from the
-  // actual reader box element (not the window) so it always fits inside it.
-  const readerRect = $('reader-wrap').getBoundingClientRect();
-  const readerBoxPx = Math.floor(Math.min(readerRect.width, readerRect.height) * 0.7) || 220;
-  const scanConfig = {
-    fps: 10,
-    qrbox: { width: readerBoxPx, height: readerBoxPx },
-    videoConstraints: {
-      facingMode: { ideal: 'environment' },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 }
-    }
-  };
-  // BarcodeDetector is Chrome/Edge-only — Safari doesn't have it. Only ask
-  // the library to use it when it's actually available, to stay safe.
-  if (typeof window.BarcodeDetector !== 'undefined'){
-    scanConfig.experimentalFeatures = { useBarCodeDetectorIfSupported: true };
-  }
+
   try{
-    await html5QrCode.start({ facingMode: { ideal: 'environment' } }, scanConfig, qrSuccess, () => {});
-    setStatus('Đang quét… giữ thẻ cách camera 10–15cm, đủ sáng, và giữ yên vài giây để nét.');
-  }catch(err1){
-    // Fallback for Safari/iOS: facingMode alone sometimes gets rejected or
-    // picks the wrong camera. Enumerate cameras explicitly and retry with a
-    // concrete device instead — the standard workaround for this library.
-    try{
-      const cameras = await Html5Qrcode.getCameras();
-      if (!cameras || !cameras.length) throw err1;
-      const backCam = cameras.find(c => /back|rear|environment/i.test(c.label)) || cameras[cameras.length - 1];
-      await html5QrCode.start(backCam.id, scanConfig, qrSuccess, () => {});
-      setStatus('Đang quét… giữ thẻ cách camera 10–15cm, đủ sáng, và giữ yên vài giây để nét.');
-    }catch(err2){
-      setStatus('Không mở được camera: ' + (err2.message || err1.message) + ' — kiểm tra Cài đặt > Safari > Camera đã cho phép trang này chưa.', 'err');
-      resetScanButtons();
-      return;
-    }
+    scanStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
+  }catch(err){
+    setStatus('Không mở được camera: ' + err.message + ' — kiểm tra quyền camera đã cấp cho trình duyệt này chưa.', 'err');
+    resetScanButtons();
+    return;
   }
 
-  // try to enable continuous autofocus and expose a zoom slider if the device supports it
+  const video = $('reader');
+  video.srcObject = scanStream;
+  await video.play().catch(()=>{});
+
+  // Continuous autofocus + a slightly-zoomed default (dense QR codes read
+  // better zoomed in a bit) — best-effort, silently skipped where unsupported.
+  const track = scanStream.getVideoTracks()[0];
   try{
-    await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] });
-  }catch(e){ /* not supported on this device, ignore */ }
-  try{
-    const caps = html5QrCode.getRunningTrackCapabilities();
-    if (caps && caps.zoom){
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const advanced = [];
+    if (caps.focusMode && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+    if (advanced.length) await track.applyConstraints({ advanced });
+    if (caps.zoom){
       $('zoomRow').style.display = 'flex';
       $('zoomSlider').min = caps.zoom.min;
       $('zoomSlider').max = caps.zoom.max;
       $('zoomSlider').step = caps.zoom.step || 0.1;
-      // Default to a higher zoom than the minimum — GPLX/CCCD QR codes are
-      // small and dense, and most phones start too zoomed-out to read them
-      // reliably. ~35% of the way to max works well in practice.
       const defaultZoom = caps.zoom.min + (caps.zoom.max - caps.zoom.min) * 0.35;
       $('zoomSlider').value = defaultZoom;
-      html5QrCode.applyVideoConstraints({ advanced: [{ zoom: defaultZoom }] }).catch(()=>{});
+      track.applyConstraints({ advanced: [{ zoom: defaultZoom }] }).catch(()=>{});
     } else {
       $('zoomRow').style.display = 'none';
     }
   }catch(e){ $('zoomRow').style.display = 'none'; }
+
+  setStatus('Đang quét… giữ thẻ cách camera 10–15cm, đủ sáng, và giữ yên vài giây để nét.');
+  scanLoop();
 });
 
+async function scanLoop(){
+  const video = $('reader');
+  if (!scanStream || video.readyState < 2){ // HAVE_CURRENT_DATA
+    scanLoopId = requestAnimationFrame(scanLoop);
+    return;
+  }
+  try{
+    let decodedText = null;
+    if (barcodeDetector){
+      // Native browser decoder — fast, and reads directly off the video
+      // element (no manual canvas draw needed).
+      const results = await barcodeDetector.detect(video);
+      if (results && results.length) decodedText = results[0].rawValue;
+    } else if (typeof jsQR === 'function'){
+      scanCanvas.width = video.videoWidth;
+      scanCanvas.height = video.videoHeight;
+      scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+      const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+      const result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if (result && result.data) decodedText = result.data;
+    }
+    if (decodedText){
+      setStatus('Đã đọc được mã QR.', 'ok');
+      const dt = $('docType').value;
+      const data = dt === 'gplx' ? parseGplxQr(decodedText) : parseCccdQr(decodedText);
+      showFields(data, 'qr', dt);
+      stopScanner();
+      return;
+    }
+  }catch(e){ /* a single failed frame is normal — just try the next one */ }
+  scanLoopId = requestAnimationFrame(scanLoop);
+}
+
 $('zoomSlider').addEventListener('input', () => {
-  if (html5QrCode){
-    html5QrCode.applyVideoConstraints({ advanced: [{ zoom: parseFloat($('zoomSlider').value) }] }).catch(()=>{});
+  if (scanStream){
+    const track = scanStream.getVideoTracks()[0];
+    track.applyConstraints({ advanced: [{ zoom: parseFloat($('zoomSlider').value) }] }).catch(()=>{});
   }
 });
 
 $('btnStop').addEventListener('click', stopScanner);
 
 function stopScanner(){
-  if (html5QrCode){
-    html5QrCode.stop().then(() => html5QrCode.clear()).catch(()=>{});
+  if (scanLoopId) cancelAnimationFrame(scanLoopId);
+  scanLoopId = null;
+  if (scanStream){
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
   }
+  const video = $('reader');
+  if (video) video.srcObject = null;
   resetScanButtons();
 }
 function resetScanButtons(){

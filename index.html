@@ -2,10 +2,11 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
 <title>Quét CCCD/GPLX → Google Sheet</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="users.js"></script>
 <style>
   :root{
     --ink:#13202b;
@@ -21,6 +22,7 @@
     --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, Arial, sans-serif;
   }
   *{box-sizing:border-box;}
+  html{font-size:117%;}
   html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);overflow-x:hidden;max-width:100vw;}
   *{overflow-wrap:break-word;word-break:break-word;}
   body{padding-bottom:48px;}
@@ -201,7 +203,7 @@
     <label>Số GPLX</label><input id="f_gplxNumber" placeholder="Nếu có 2 bằng, quét lần 2 sẽ tự nối bằng dấu |">
     <label>Hạng bằng lái</label><input id="f_licenseClass" placeholder="VD: A1, B2... (2 bằng sẽ nối bằng dấu |)">
     <label>Ngày cấp GPLX</label><input id="f_gplxIssueDate" placeholder="dd/mm/yyyy">
-    <label>Ngày hết hạn GPLX</label><input id="f_gplxExpiryDate" placeholder="dd/mm/yyyy">
+    <label>Nơi cấp GPLX</label><input id="f_gplxPlaceOfIssue" placeholder="Cục Cảnh sát giao thông">
     <label>Đơn vị cấp <span class="req">*</span></label><input id="f_issuingAuthority" placeholder="VD: Sở GTVT Tp.HCM">
     <label>Ngày trúng tuyển (đạt kết quả sát hạch) <span class="req">*</span></label><input id="f_passDate" placeholder="dd/mm/yyyy — xem mặt sau thẻ, cần nhập tay">
 
@@ -251,17 +253,6 @@
   </div>
 
   <div class="card">
-    <h2>Link Google Form</h2>
-    <label>Dán "Link đã điền sẵn" (pre-filled link) từ Google Form vào đây</label>
-    <textarea id="formPrefillLink" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.111=...&entry.222=..." style="min-height:70px;"></textarea>
-    <div class="row">
-      <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
-    </div>
-    <div id="formSetupStatus" class="status"></div>
-    <div class="hint">Thứ tự câu hỏi trong Form phải là: Họ và tên, Số CCCD, Số CMND cũ, Ngày sinh, Giới tính, Địa chỉ, Ngày cấp CCCD, Số GPLX, Hạng GPLX, Ngày cấp GPLX, Ngày hết hạn CCCD, Đơn vị cấp, Ngày trúng tuyển, Nguồn, Số điện thoại, Khóa, Số tiền học phí đã đóng, Sale, Ngày hết hạn GPLX (câu bổ sung ở cuối — lấy từ QR code GPLX).</div>
-  </div>
-
-  <div class="card">
     <h2>Danh sách đã quét (<span id="countBadge">0</span>)</h2>
     <table>
       <thead><tr><th>Họ tên</th><th>Số CCCD</th><th>Trạng thái</th><th></th></tr></thead>
@@ -290,6 +281,16 @@
   <details class="card">
     <summary style="cursor:pointer;">⚙️ Cài đặt nâng cao / dự phòng (thường không cần mở)</summary>
     <div style="margin-top:12px;">
+      <h2>Link Google Form</h2>
+      <label>Dán "Link đã điền sẵn" (pre-filled link) từ Google Form vào đây</label>
+      <textarea id="formPrefillLink" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.111=...&entry.222=..." style="min-height:70px;"></textarea>
+      <div class="row">
+        <button class="primary" id="btnSaveForm">Lưu cài đặt Form</button>
+      </div>
+      <div id="formSetupStatus" class="status"></div>
+      <div class="hint">Chỉ chỉnh khi thật sự cần đổi Form — dán/xoá nhầm ký tự ở đây sẽ khiến việc gửi dữ liệu bị lỗi.</div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
       <h2>Cách khác: xuất file (không cần mạng)</h2>
       <div class="row">
         <button class="primary" id="btnExportEnc">Tải file mã hóa (bảo mật)</button>
@@ -335,15 +336,8 @@
 const $ = id => document.getElementById(id);
 
 // ---------- simple login gate ----------
-// NOTE: this page has no server — this is a lightweight gate to stop casual
-// access and to tag each submission with who sent it, NOT real security.
-// Anyone who views the page source can see this list. Edit it with your
-// team's real usernames/passwords below:
-const USERS = [
-  { username: 'admin', password: 'minad' },
-  { username: 'sale2', password: 'doimatkhaunay2' },
-  // { username: 'ten_khac', password: 'mat_khau_khac' },
-];
+// NOTE: USERS list now lives in users.js (loaded via <script> tag above) —
+// not real security, just keeps credentials out of this file's own source.
 
 function checkLogin(){
   const saved = localStorage.getItem('cccd_current_sale');
@@ -473,10 +467,24 @@ function parseGplxQr(raw){
   return { idNumber: '', oldId: '', fullName: '', dob: '', gender: '', address: '', issueDate: '', licenseClass: '', expiryDate: '', issuingAuthority: '', raw };
 }
 
+// ---------- date input mask (auto-inserts "/" as dd/mm/yyyy) ----------
+function attachDateMask(id){
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    const digits = el.value.replace(/\D/g, '').slice(0, 8);
+    let out = digits;
+    if (digits.length > 4) out = digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4);
+    else if (digits.length > 2) out = digits.slice(0,2) + '/' + digits.slice(2);
+    el.value = out;
+  });
+}
+['f_dob','f_issueDate','f_expiryDate','f_gplxIssueDate','f_passDate'].forEach(attachDateMask);
+
 function resetDraft(){
   ['f_fullName','f_dob','f_phone','f_khoa','f_tuition',
    'f_idNumber','f_oldId','f_gender','f_address','f_issueDate',
-   'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_gplxExpiryDate','f_expiryDate','f_issuingAuthority','f_passDate']
+   'f_gplxNumber','f_licenseClass','f_gplxIssueDate','f_gplxPlaceOfIssue','f_expiryDate','f_issuingAuthority','f_passDate']
     .forEach(id => { $(id).value = ''; });
   $('cccdBadge').textContent = 'Chưa quét';
   $('cccdBadge').className = 'badge pending';
@@ -517,7 +525,8 @@ function showFields(data, source, docType){
     appendOrSet('f_gplxNumber', data.idNumber);
     appendOrSet('f_licenseClass', data.licenseClass);
     appendOrSet('f_gplxIssueDate', data.issueDate);
-    appendOrSet('f_gplxExpiryDate', data.expiryDate);
+    // Nơi cấp GPLX KHÔNG tự điền từ QR — để trống, có placeholder gợi ý,
+    // và khi gửi sẽ tự lấy "00" nếu người dùng không nhập gì.
     // Đơn vị cấp KHÔNG tự điền từ QR — luôn để người dùng tự nhập tay,
     // nên không ghi đè giá trị đã có ở đây.
     $('gplxBadge').textContent = 'Đã quét';
@@ -750,12 +759,12 @@ $('btnCaptureShot').addEventListener('click', () => {
   const viewW = video.clientWidth, viewH = video.clientHeight;
   const coverScale = Math.max(viewW / vw, viewH / vh);
 
-  // Small safety margin: capture a bit MORE than the visual guide shows.
-  // Slight hand movement between framing and tapping the shutter can shift
-  // the card a little — this buffer keeps real content from getting cut off
-  // at the edges (particularly noticeable on the front side, which has text
-  // closer to the card edges than the back).
-  const marginRatio = 0.10;
+  // Small safety margin: capture a bit MORE than the visual guide shows, so
+  // slight hand movement doesn't cut off real content. Kept small (not the
+  // 10% used earlier) since a tighter crop with less background was
+  // requested — now that text/UI is bigger (easier to frame precisely),
+  // this smaller buffer should still be enough insurance.
+  const marginRatio = 0.03;
   const mx = rect.width * marginRatio;
   const my = rect.height * marginRatio;
   const gLeft = rect.left - mx, gTop = rect.top - my;
@@ -854,7 +863,7 @@ $('btnAdd').addEventListener('click', () => {
     licenseClass: $('f_licenseClass').value.trim(),
     gplxIssueDate: $('f_gplxIssueDate').value.trim(),
     expiryDate: $('f_expiryDate').value.trim(),
-    expiryDateGplxEnd: $('f_gplxExpiryDate').value.trim(),
+    gplxPlaceOfIssue: $('f_gplxPlaceOfIssue').value.trim() || '00',
     issuingAuthority: $('f_issuingAuthority').value.trim(),
     passDate: $('f_passDate').value.trim(),
     source: lastSource,
@@ -910,7 +919,7 @@ function escapeHtml(s){
 renderEntries();
 
 // ---------- Google Form submission (recommended — most reliable) ----------
-const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate', 'source', 'phone', 'khoa', 'tuition', 'sale', 'expiryDateGplxEnd'];
+const FIELD_ORDER = ['fullName', 'idNumber', 'oldId', 'dob', 'gender', 'address', 'issueDate', 'gplxNumber', 'licenseClass', 'gplxIssueDate', 'expiryDate', 'issuingAuthority', 'passDate', 'source', 'phone', 'khoa', 'tuition', 'sale', 'gplxPlaceOfIssue'];
 // Hard-coded default so the app works out of the box with no setup. The
 // "Cài đặt nâng cao" section (collapsed) can still override this if the Form
 // is ever rebuilt with a different link.
@@ -988,6 +997,10 @@ $('btnSubmitForm').addEventListener('click', async () => {
   }
   const pending = entries.filter(e => !e.synced);
   if (!pending.length){ el.textContent = 'Không có mục nào cần gửi.'; el.className = 'status'; return; }
+
+  const confirmed = confirm(`Bạn chắc chắn thông tin của ${pending.length} mục đã chính xác chưa? Nhấn OK để gửi lên Google Sheet, hoặc Huỷ để quay lại kiểm tra.`);
+  if (!confirmed) return;
+
   $('btnSubmitForm').disabled = true;
   for (let i = 0; i < pending.length; i++){
     el.textContent = `Đang gửi… ${i+1}/${pending.length}`;
@@ -1011,9 +1024,9 @@ $('btnExportPhotos').addEventListener('click', async () => {
   el.className = 'status';
   const zip = new JSZip();
   withPhotos.forEach((e, i) => {
-    const classPart = (e.licenseClass || '').replace(/\|/g, '-'); // "A1|C1" → "A1-C1", zip-folder-safe
+    const khoaPart = (e.khoa || '').trim(); // Khóa (course), không phải Hạng bằng lái
     const namePart = e.fullName || e.idNumber || ('hoc_vien_' + i);
-    const label = classPart ? `${classPart}-${namePart}` : namePart;
+    const label = khoaPart ? `${khoaPart}-${namePart}` : namePart;
     const safeName = label.replace(/[^\p{L}\p{N}\-]+/gu, '_');
     const folder = zip.folder(`${i+1}_${safeName}`);
     Object.entries(e.photos).forEach(([slot, dataUrl]) => {
@@ -1026,9 +1039,9 @@ $('btnExportPhotos').addEventListener('click', async () => {
   a.href = URL.createObjectURL(blob);
   if (withPhotos.length === 1){
     const e = withPhotos[0];
-    const classPart = (e.licenseClass || '').replace(/\|/g, '-');
+    const khoaPart = (e.khoa || '').trim();
     const namePart = e.fullName || e.idNumber || 'hoc_vien';
-    const zipLabel = (classPart ? `${classPart}-${namePart}` : namePart).replace(/[^\p{L}\p{N}\-]+/gu, '_');
+    const zipLabel = (khoaPart ? `${khoaPart}-${namePart}` : namePart).replace(/[^\p{L}\p{N}\-]+/gu, '_');
     a.download = zipLabel + '.zip';
   } else {
     a.download = 'anh-hoc-vien-' + Date.now() + '.zip';
@@ -1043,11 +1056,11 @@ $('btnExportPhotos').addEventListener('click', async () => {
 
 // ---------- CSV export & encryption (no network required) ----------
 function entriesToCsv(list){
-  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp CCCD','Ngày hết hạn CCCD','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Ngày hết hạn GPLX','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng','Sale'];
+  const headers = ['Họ tên','Số CCCD','Số CMND cũ','Ngày sinh','Giới tính','Địa chỉ','Ngày cấp CCCD','Ngày hết hạn CCCD','Số GPLX','Hạng GPLX','Ngày cấp GPLX','Nơi cấp GPLX','Đơn vị cấp','Ngày trúng tuyển','Nguồn','Số điện thoại','Khóa','Học phí đã đóng','Sale'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   const rows = list.map(e => [
     e.fullName, e.idNumber, e.oldId, e.dob, e.gender, e.address, e.issueDate, e.expiryDate,
-    e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.expiryDateGplxEnd, e.issuingAuthority, e.passDate,
+    e.gplxNumber, e.licenseClass, e.gplxIssueDate, e.gplxPlaceOfIssue, e.issuingAuthority, e.passDate,
     e.source, e.phone, e.khoa, e.tuition, e.sale
   ].map(esc).join(','));
   return '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n'); // \uFEFF BOM so Vietnamese displays correctly in Sheets/Excel

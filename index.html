@@ -269,10 +269,6 @@
       <button class="primary" id="btnSubmitForm">Gửi tất cả lên Google Sheet (qua Form)</button>
     </div>
     <div id="formSubmitStatus" class="status"></div>
-    <details style="margin-top:6px;">
-      <summary style="font-size:.72rem;">Xem chi tiết lần gửi gần nhất (debug)</summary>
-      <textarea id="lastSubmitDebug" readonly style="min-height:140px;font-size:.68rem;margin-top:6px;"></textarea>
-    </details>
 
     <div class="row">
       <button class="gold" id="btnExportPhotos">Tải tất cả ảnh (file ZIP)</button>
@@ -318,6 +314,10 @@
         <button class="primary" id="btnDecrypt">Giải mã và tải file CSV</button>
       </div>
       <div id="decStatus" class="status"></div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
+      <h2>Xem chi tiết lần gửi gần nhất (debug)</h2>
+      <textarea id="lastSubmitDebug" readonly style="min-height:140px;font-size:.68rem;"></textarea>
 
       <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
       <h2>Đồng bộ qua Apps Script (không khuyên dùng)</h2>

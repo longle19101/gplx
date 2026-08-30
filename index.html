@@ -181,6 +181,9 @@
       <label style="margin:0;flex:none;width:44px;">Zoom</label>
       <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" style="flex:1;">
     </div>
+    <div class="row">
+      <button class="gold" id="btnAiOcr">🤖 Không có QR → Chụp ảnh, AI đọc thông tin (Beta)</button>
+    </div>
     <div id="status" class="status">Chọn loại giấy tờ, nhấn "Bắt đầu quét QR" và hướng camera vào mã QR.</div>
   </div>
 
@@ -280,6 +283,17 @@
       <button class="ghost" id="btnClearAll" style="border-color:var(--red);color:var(--red);">🗑️ Xoá toàn bộ danh sách đã quét</button>
     </div>
     <div id="clearAllStatus" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Cài đặt Gemini API Key (cho tính năng AI đọc ảnh)</h2>
+    <label>API Key từ Google AI Studio</label>
+    <input id="geminiApiKey" type="password" placeholder="Dán API Key vào đây">
+    <div class="row">
+      <button class="primary" id="btnSaveGeminiKey">Lưu API Key</button>
+    </div>
+    <div id="geminiKeyStatus" class="status"></div>
+    <div class="hint">Lấy key miễn phí tại aistudio.google.com (mục "Get API key"). Key được lưu riêng trên máy/trình duyệt này (không phải trong mã nguồn dùng chung) — nhưng ai dùng chung thiết bị này, hoặc xem được tab Network trong công cụ nhà phát triển khi app đang chạy, vẫn có thể thấy key. Mỗi người dùng nên tự lấy key riêng của mình, đừng chia sẻ 1 key cho nhiều thiết bị.</div>
   </div>
 
   <details class="card">
@@ -582,7 +596,7 @@ function showFields(data, source, docType){
   lastSource = source;
   $('fieldsCard').style.display = 'block';
   $('srcBadge').innerHTML = source === 'qr'
-    ? '<span class="badge qr">QR</span>' : '<span class="badge ocr">OCR</span>';
+    ? '<span class="badge qr">QR</span>' : (source === 'ai' ? '<span class="badge ocr">AI</span>' : '<span class="badge ocr">OCR</span>');
 
   // Shared fields — only fill if not already set by an earlier scan, so a
   // second scan for the same person doesn't clobber a manually-corrected name.
@@ -763,6 +777,7 @@ const PHOTO_LABELS = {
 };
 let captureStream = null;
 let captureSlot = null;
+let captureMode = 'photo'; // 'photo' (save to draftPhotos) or 'ocr' (send to Gemini for field extraction)
 
 // Real-world document size: 9.5cm x 6.5cm (landscape). Computed in actual
 // viewport pixels (not fixed CSS %) so the on-screen guide always matches
@@ -786,6 +801,7 @@ function nextPhotoSlot(doc){
 }
 
 function openCaptureModal(doc){
+  captureMode = 'photo';
   const slot = nextPhotoSlot(doc);
   captureSlot = slot;
   $('captureLabel').textContent = 'Chụp ảnh: ' + PHOTO_LABELS[slot];
@@ -824,6 +840,46 @@ function openCaptureModal(doc){
     closeCaptureModal();
   });
 }
+
+// AI OCR capture — reuses the same camera/framing UI as document photos,
+// but the captured image is sent to Gemini for field extraction instead of
+// being saved as an attachment.
+function openOcrCapture(){
+  if (!localStorage.getItem('cccd_gemini_key')){
+    setStatus('Vui lòng nhập và lưu Gemini API Key trước (mục "Cài đặt Gemini API Key").', 'err');
+    return;
+  }
+  captureMode = 'ocr';
+  captureSlot = 'ocr';
+  $('captureLabel').textContent = 'Chụp ảnh để AI đọc: ' + ($('docType').value === 'gplx' ? 'GPLX' : 'CCCD');
+  const rect = computeFrameRect('ocr');
+  const frameEl = $('captureFrame');
+  frameEl.className = 'capture-frame';
+  frameEl.style.left = rect.left + 'px';
+  frameEl.style.top = rect.top + 'px';
+  frameEl.style.width = rect.width + 'px';
+  frameEl.style.height = rect.height + 'px';
+  frameEl.style.right = 'auto';
+  frameEl.style.bottom = 'auto';
+  $('photoCaptureModal').style.display = 'block';
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }
+  }).then(stream => {
+    captureStream = stream;
+    $('captureVideo').srcObject = stream;
+    const track = stream.getVideoTracks()[0];
+    try{
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      if (caps.focusMode && caps.focusMode.includes('continuous')){
+        track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      }
+    }catch(e){}
+  }).catch(err => {
+    setStatus('Không mở được camera: ' + err.message, 'err');
+    closeCaptureModal();
+  });
+}
+$('btnAiOcr').addEventListener('click', openOcrCapture);
 // Tap-to-focus: nudges the camera to refocus at the tapped point (where the
 // device supports it) and always shows a focus-ring animation for feedback.
 $('captureVideo').addEventListener('click', (e) => {
@@ -897,11 +953,81 @@ $('btnCaptureShot').addEventListener('click', () => {
   canvas.width = Math.max(1, Math.round(csw * outScale));
   canvas.height = Math.max(1, Math.round(csh * outScale));
   canvas.getContext('2d').drawImage(video, csx, csy, csw, csh, 0, 0, canvas.width, canvas.height);
+
+  if (captureMode === 'ocr'){
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    closeCaptureModal();
+    runGeminiOcr(dataUrl);
+    return;
+  }
+
   draftPhotos[slot] = canvas.toDataURL('image/jpeg', 0.85);
   renderPhotoPreviews();
   setStatus(`Đã chụp ảnh ${PHOTO_LABELS[slot]} (đã cắt đúng khung).`, 'ok');
   closeCaptureModal();
 });
+
+// ---------- Gemini AI OCR ----------
+$('btnSaveGeminiKey').addEventListener('click', () => {
+  const key = $('geminiApiKey').value.trim();
+  const el = $('geminiKeyStatus');
+  if (!key){ el.textContent = 'Vui lòng nhập API Key.'; el.className = 'status err'; return; }
+  localStorage.setItem('cccd_gemini_key', key);
+  el.textContent = 'Đã lưu API Key trên máy này.';
+  el.className = 'status ok';
+});
+{
+  const savedKey = localStorage.getItem('cccd_gemini_key');
+  if (savedKey) $('geminiApiKey').value = savedKey;
+}
+
+const GEMINI_MODEL = 'gemini-2.5-flash'; // free-tier eligible; change here if Google renames/retires this model
+
+async function runGeminiOcr(dataUrl){
+  const apiKey = localStorage.getItem('cccd_gemini_key');
+  if (!apiKey){
+    setStatus('Chưa có Gemini API Key — vào mục "Cài đặt Gemini API Key" để thêm.', 'err');
+    return;
+  }
+  const dt = $('docType').value;
+  setStatus('Đang gửi ảnh cho AI đọc… có thể mất vài giây.');
+  const base64 = dataUrl.split(',')[1];
+  const schema = dt === 'gplx'
+    ? '{"idNumber":"","fullName":"","dob":"dd/mm/yyyy","licenseClass":"","issueDate":"dd/mm/yyyy"}'
+    : '{"idNumber":"","oldId":"","fullName":"","dob":"dd/mm/yyyy","gender":"","address":"","issueDate":"dd/mm/yyyy"}';
+  const prompt = `Bạn đang đọc ảnh chụp ${dt === 'gplx' ? 'Giấy phép lái xe (GPLX)' : 'Căn cước công dân (CCCD)'} Việt Nam. Trích xuất chính xác các trường có trong ảnh. Trả lời DUY NHẤT một đối tượng JSON hợp lệ, không kèm markdown hay giải thích gì thêm, đúng theo mẫu sau (giữ nguyên tên trường, để trống "" nếu không đọc được hoặc không có trong ảnh): ${schema}. Mọi ngày tháng phải viết theo định dạng dd/mm/yyyy.`;
+
+  try{
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: 'image/jpeg', data: base64 } }
+          ]
+        }],
+        generationConfig: { responseMimeType: 'application/json' }
+      })
+    });
+    if (!resp.ok){
+      const errText = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}${errText ? ' — ' + errText.slice(0, 200) : ''}`);
+    }
+    const json = await resp.json();
+    const text = json.candidates && json.candidates[0] && json.candidates[0].content &&
+                 json.candidates[0].content.parts && json.candidates[0].content.parts[0] &&
+                 json.candidates[0].content.parts[0].text;
+    if (!text) throw new Error('AI không trả về nội dung hợp lệ.');
+    const data = JSON.parse(text);
+    data.raw = text;
+    showFields(data, 'ai', dt);
+    setStatus('AI đã đọc xong — vui lòng kiểm tra kỹ lại thông tin trước khi lưu (AI có thể đọc sai).', 'ok');
+  }catch(err){
+    setStatus('Lỗi khi gọi AI: ' + err.message, 'err');
+  }
+}
 
 function updateDocButtonLabel(doc, btn, baseLabel){
   const hasFront = !!draftPhotos[doc + '_front'];
@@ -976,8 +1102,19 @@ $('btnAdd').addEventListener('click', () => {
   // GPLX fields aren't hard-required — a student may genuinely not have a
   // GPLX. If ALL of them are empty, confirm that's intentional rather than
   // silently accepting what might just be a forgotten scan.
-  const GPLX_GROUP_IDS = ['f_passDate', 'f_gplxNumber', 'f_licenseClass', 'f_gplxIssueDate', 'f_issuingAuthority'];
-  const gplxAllEmpty = GPLX_GROUP_IDS.every(id => !$(id).value.trim());
+  // GPLX fields aren't hard-required — a student may genuinely not have a
+  // GPLX. If none of the core GPLX fields have real data (issuingAuthority
+  // is excluded from this check on its own — it's pre-filled with "Cục
+  // CSGT" by default, so it's never truly empty; we treat it as "not
+  // entered" only when it's empty or still exactly the untouched default),
+  // confirm that's intentional rather than silently accepting what might
+  // just be a forgotten scan.
+  const gplxCoreEmpty = ['f_passDate', 'f_gplxNumber', 'f_licenseClass', 'f_gplxIssueDate'].every(id => !$(id).value.trim());
+  const issuingAuthorityUntouched = (() => {
+    const v = $('f_issuingAuthority').value.trim();
+    return !v || v === 'Cục CSGT';
+  })();
+  const gplxAllEmpty = gplxCoreEmpty && issuingAuthorityUntouched;
   if (gplxAllEmpty){
     const proceed = confirm('Bạn có chắc HỌC VIÊN không có GPLX?');
     if (!proceed) return;
@@ -999,7 +1136,10 @@ $('btnAdd').addEventListener('click', () => {
     licenseClass: $('f_licenseClass').value.trim(),
     gplxIssueDate: $('f_gplxIssueDate').value.trim(),
     cccdPlaceOfIssue: applyDefaultFallback($('f_cccdPlaceOfIssue').value.trim(), 'Cục CSQLHCTTXH'),
-    issuingAuthority: applyDefaultFallback($('f_issuingAuthority').value.trim(), 'Cục CSGT'),
+    // Only apply the "00" default when GPLX was actually scanned/entered —
+    // if the student genuinely has no GPLX, this should stay blank rather
+    // than filling in a meaningless "00".
+    issuingAuthority: gplxAllEmpty ? '' : applyDefaultFallback($('f_issuingAuthority').value.trim(), 'Cục CSGT'),
     passDate: $('f_passDate').value.trim(),
     source: lastSource,
     sale: localStorage.getItem('cccd_current_sale') || '',

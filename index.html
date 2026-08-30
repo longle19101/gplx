@@ -981,7 +981,7 @@ $('btnSaveGeminiKey').addEventListener('click', () => {
   if (savedKey) $('geminiApiKey').value = savedKey;
 }
 
-const GEMINI_MODEL = 'gemini-2.5-flash'; // free-tier eligible; change here if Google renames/retires this model
+const GEMINI_MODEL = 'gemini-3.6-flash'; // free-tier eligible; change here if Google renames/retires this model
 
 async function runGeminiOcr(dataUrl){
   const apiKey = localStorage.getItem('cccd_gemini_key');

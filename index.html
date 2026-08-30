@@ -211,7 +211,7 @@
         <option>A</option><option>A1</option><option>B.01</option><option>B</option>
         <option>C1</option><option>BC</option><option>BD2</option><option>C1D2</option>
       </select>
-          <input id="f_khoaNumber" placeholder="VD: K24">  <label><span class="req">*</span></label>
+      <input id="f_khoaNumber" placeholder="VD: K24">
     </div>
     <label>Số điện thoại <span class="req">*</span></label><input id="f_phone" type="tel" placeholder="Đủ 10 số">
     <label>Số tiền học phí đã đóng <span class="req">*</span></label><input id="f_tuition" type="text" inputmode="numeric" placeholder="VD: 2.000.000">
@@ -546,7 +546,22 @@ function resetDraft(){
   $('rawData').textContent = '';
   draftPhotos = {};
   renderPhotoPreviews();
+  updateAddButtonState();
 }
+
+// Keeps "Thêm vào danh sách" disabled in real time until every required
+// field (Khóa hạng, Khóa số, SĐT, Học phí) has a value — GPLX fields are
+// intentionally NOT in this list, they're handled with a confirm prompt
+// instead since a student may genuinely not have a GPLX.
+const LIVE_REQUIRED_IDS = ['f_khoaClass', 'f_khoaNumber', 'f_phone', 'f_tuition'];
+function updateAddButtonState(){
+  const allFilled = LIVE_REQUIRED_IDS.every(id => $(id).value.trim());
+  $('btnAdd').disabled = !allFilled;
+}
+LIVE_REQUIRED_IDS.forEach(id => {
+  $(id).addEventListener('input', updateAddButtonState);
+  $(id).addEventListener('change', updateAddButtonState);
+});
 
 // Merges a scan result into the shared draft instead of overwriting it —
 // this lets you scan CCCD, then switch document type and scan GPLX for the
@@ -946,7 +961,6 @@ $('btnAdd').addEventListener('click', () => {
     return;
   }
   const REQUIRED_FIELDS = [
-    { id: 'f_passDate', label: 'Ngày trúng tuyển' },
     { id: 'f_phone', label: 'Số điện thoại' },
     { id: 'f_khoaClass', label: 'Khóa (chọn hạng)' },
     { id: 'f_khoaNumber', label: 'Khóa (nhập số khóa)' },
@@ -958,6 +972,15 @@ $('btnAdd').addEventListener('click', () => {
     $(missing[0].id).scrollIntoView({ behavior: 'smooth', block: 'center' });
     $(missing[0].id).focus();
     return;
+  }
+  // GPLX fields aren't hard-required — a student may genuinely not have a
+  // GPLX. If ALL of them are empty, confirm that's intentional rather than
+  // silently accepting what might just be a forgotten scan.
+  const GPLX_GROUP_IDS = ['f_passDate', 'f_gplxNumber', 'f_licenseClass', 'f_gplxIssueDate', 'f_issuingAuthority'];
+  const gplxAllEmpty = GPLX_GROUP_IDS.every(id => !$(id).value.trim());
+  if (gplxAllEmpty){
+    const proceed = confirm('Bạn có chắc HỌC VIÊN không có GPLX?');
+    if (!proceed) return;
   }
   const khoaClass = $('f_khoaClass').value.trim();
   const khoaNumber = $('f_khoaNumber').value.trim();
@@ -1143,9 +1166,6 @@ $('btnSubmitForm').addEventListener('click', async () => {
   }
   const pending = entries.filter(e => !e.synced);
   if (!pending.length){ el.textContent = 'Không có mục nào cần gửi.'; el.className = 'status'; return; }
-
-  const confirmed = confirm(`Bạn chắc chắn thông tin của ${pending.length} mục đã chính xác chưa? Nhấn OK để gửi lên Google Sheet, hoặc Huỷ để quay lại kiểm tra.`);
-  if (!confirmed) return;
 
   $('btnSubmitForm').disabled = true;
   for (let i = 0; i < pending.length; i++){
